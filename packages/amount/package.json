@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@xlabs-xyz/amount",
+  "version": "1.0.0",
+  "author": "xLabs",
+  "license": "Apache-2.0",
+  "description": "Handle amounts of different kinds with units in a type-safe manner with infinite precision",
+  "keywords": ["amount", "unit", "dimension", "rational", "currency", "precision"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlabs/ts-sdk"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "types": "./dist/index.d.ts",
+    "import": "./dist/index.js",
+    "default": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "!*.test.*",
+    "README.md"
+  ],
+  "scripts": {
+    "prepublishOnly": "pnpm test && pnpm build",
+    "build": "tsc",
+    "test": "tsx --test tests/**/*.test.ts",
+    "clean": "rm -rf ./dist"
+  }
+}

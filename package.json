@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "xLabs TS SDK",
+  "author": "xLabs",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlabs/ts-sdk"
+  },
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "clean": "pnpm -r clean && rm -rf node_modules .pnpm-store"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20.18.0",
+    "npm": "please-use-pnpm",
+    "pnpm": "^10",
+    "yarn": "please-use-pnpm"
+  },
+  "packageManager": "pnpm@10.20.0"
+}
