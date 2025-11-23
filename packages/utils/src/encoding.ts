@@ -1,5 +1,5 @@
 import { base16 as b16, base64 as b64, base58 as b58, bech32 as be32 } from "@scure/base";
-import type { Size } from "./misc.js";
+import type { RoUint8Array } from "@xlabs-xyz/const-utils";
 import type { PreserveBrand } from "./branding.js";
 
 export const stripPrefix = (prefix: string, str: string): string =>
@@ -13,18 +13,18 @@ export const hex = {
   decode: (input: string): Uint8Array =>
     b16.decode(stripPrefix("0x", input).toUpperCase()),
 
-  encode: ((input: string | Uint8Array, prefix: boolean = false): string => {
+  encode: ((input: string | RoUint8Array, prefix: boolean = false): string => {
     input = typeof input === "string" ? bytes.encode(input) : input;
-    const result = b16.encode(input).toLowerCase();
+    const result = b16.encode(input as Uint8Array).toLowerCase();
     return prefix ? `0x${result}` : result;
   }) as {
-    (input: string | Uint8Array, prefix: true): `0x${string}`;
-    (input: string | Uint8Array, prefix?: boolean): string;
+    (input: string | RoUint8Array, prefix: true): `0x${string}`;
+    (input: string | RoUint8Array, prefix?: boolean): string;
   },
 };
 
 export const bech32 = {
-  decode: /* istanbul ignore next */ (input: string): Uint8Array =>
+  decode: (input: string): Uint8Array =>
     be32.decodeToBytes(input).bytes,
 
   //no encoding for bech32 for now since there's currently no need and it doesn't fit
@@ -34,8 +34,8 @@ export const bech32 = {
 export const base58 = {
   decode: b58.decode,
 
-  encode: (input: string | Uint8Array): string =>
-    b58.encode(typeof input === "string" ? bytes.encode(input) : input),
+  encode: (input: string | RoUint8Array): string =>
+    b58.encode(typeof input === "string" ? bytes.encode(input) : input as Uint8Array),
 };
 
 const isB64Regex = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
@@ -44,12 +44,12 @@ export const base64 = {
 
   decode: b64.decode,
 
-  encode: (input: string | Uint8Array): string =>
-    b64.encode(typeof input === "string" ? bytes.encode(input) : input),
+  encode: (input: string | RoUint8Array): string =>
+    b64.encode(typeof input === "string" ? bytes.encode(input) : input as Uint8Array),
 };
 
 export const bignum = {
-  decode: (input: string | Uint8Array, emptyIsZero: boolean = false): bigint => {
+  decode: (input: string | RoUint8Array, emptyIsZero: boolean = false): bigint => {
     if (typeof input !== "string")
       input = hex.encode(input, true);
     if (input === "" || input === "0x") {
@@ -77,7 +77,7 @@ export const bignum = {
     (input: bigint, prefix?: boolean): string;
   },
 
-  toBytes: (input: bigint | number, length?: Size): Uint8Array => {
+  toBytes: (input: bigint | number, length?: number): Uint8Array => {
     if (typeof input === "number")
       input = bignum.toBigInt(input);
     const b = hex.decode(bignum.toString(input));
@@ -109,31 +109,36 @@ export const bytes = {
   encode: (value: string): Uint8Array =>
     encoder.encode(value),
 
-  decode: (value: Uint8Array): string =>
-    decoder.decode(value),
+  decode: (value: RoUint8Array): string =>
+    decoder.decode(value as Uint8Array),
 
-  equals: (lhs: Uint8Array, rhs: Uint8Array): boolean =>
+  equals: (lhs: RoUint8Array, rhs: RoUint8Array): boolean =>
     lhs.length === rhs.length && lhs.every((v, i) => v === rhs[i]),
 
-  zpad: <U extends Uint8Array>(
+  zpad: <U extends RoUint8Array>(
     arr: U,
-    length: Size,
+    length: number,
     padStart: boolean = true,
   ): PreserveBrand<U, Uint8Array> => {
     if (length === arr.length)
-      return arr as Uint8Array as PreserveBrand<U, Uint8Array>;
+      return new Uint8Array(arr) as any;
 
     if (length < arr.length)
       throw new Error(`Padded length must be >= input length`);
 
-    const result = new Uint8Array(length) as PreserveBrand<U, Uint8Array>;
+    const result = new Uint8Array(length) as any;
     result.set(arr, padStart ? length - arr.length : 0);
     return result;
   },
 
-  concat: <U extends Uint8Array>(...args: U[]): PreserveBrand<U, Uint8Array> => {
+  concat: <U extends RoUint8Array>(...args: U[]): PreserveBrand<U, Uint8Array> => {
+    if (args.length < 2)
+      return (args.length === 1
+        ? new Uint8Array(0)
+        : args[0]!) as any;
+
     const length = args.reduce((acc, curr) => acc + curr.length, 0);
-    const result = new Uint8Array(length) as PreserveBrand<U, Uint8Array>;
+    const result = new Uint8Array(length) as any;
     let offset = 0;
     for (const arg of args) {
       result.set(arg, offset);

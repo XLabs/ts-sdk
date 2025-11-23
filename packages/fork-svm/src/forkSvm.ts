@@ -2,15 +2,15 @@ import type { Address, Transaction, RpcTransport } from "@solana/kit";
 import { createSolanaRpc, createSolanaRpcFromTransport } from "@solana/kit";
 import { isJsonRpcPayload } from "@solana/rpc-spec";
 import { range, zip } from "@xlabs-xyz/const-utils";
+import { bpfLoaderUpgradeableProgramId, addressSize, hashSize } from "@xlabs-xyz/svm";
 import { LiteSVM, TransactionMetadata } from "./liteSvm.js";
 import type { MaybeSvmAccInfo, MaybeKitAccInfo } from "./details.js";
 import {
-  bpfUpgradeableLoaderProgramId,
   decodeAddr,
   decodeCompactU16,
-  builtInProgramIds,
-  sysvarProgramIds,
-  defaultPrograms,
+  builtInSet,
+  sysvarSet,
+  defProgSet,
   kitAccountToLiteSvmAccount,
   liteSvmAccountToKitAccount,
   emptyAccountInfo,
@@ -56,15 +56,15 @@ export class ForkSvm {
     
     if (withBuiltins) {
       this.liteSvm.withBuiltins();
-      this.addresses.special = this.addresses.special.union(builtInProgramIds);
+      this.addresses.special = this.addresses.special.union(builtInSet);
     }
     if (withSysvars) {
       this.liteSvm.withSysvars();
-      this.addresses.special = this.addresses.special.union(sysvarProgramIds);
+      this.addresses.special = this.addresses.special.union(sysvarSet);
     }
     if (withDefaultPrograms) {
       this.liteSvm.withDefaultPrograms();
-      this.addresses.special = this.addresses.special.union(defaultPrograms);
+      this.addresses.special = this.addresses.special.union(defProgSet);
     }
   }
 
@@ -268,14 +268,14 @@ export class ForkSvm {
     let offset = version === "legacy" ? 3 : 4;
     //read static address compact array length and decode the addresses
     let count = msgBytes[offset++]!;
-    const staticAddrs = range(count).map(i => decodeAddr(msgBytes, offset + i * 32));
+    const staticAddrs = range(count).map(i => decodeAddr(msgBytes, offset + i * addressSize));
 
     return this.fetchUnfetched(
       version === "legacy"
       ? staticAddrs
       : await (async () => {
-        //step over static addresses and the recent blockhash (another 32 bytes)
-        offset += (count + 1) * 32;
+        //step over static addresses and the recent blockhash
+        offset += count * addressSize + hashSize;
 
         //step over instructions
         [count, offset] = decodeCompactU16(msgBytes, offset);
@@ -297,7 +297,7 @@ export class ForkSvm {
         const [lookupTableAddresses, lookupTableIndices] = zip(
           range(lookupTableCount).map(() => { //mutates offset
             const address = decodeAddr(msgBytes, offset);
-            offset += 32;
+            offset += addressSize;
             const [wCount, wOffset] = decodeCompactU16(msgBytes, offset);
             offset = wOffset + wCount;
             const [rCount, rOffset] = decodeCompactU16(msgBytes, offset);
@@ -322,7 +322,7 @@ export class ForkSvm {
 
           //ALT header is 56 bytes immediately followed by the array of addresses (on length prefix)
           //see here: https://github.com/solana-program/address-lookup-table/blob/740dddc683057a390f0f02e66e4aa1dfa63e96a7/program/src/state.rs#L15
-          return indices.map(i => decodeAddr(accInfo.data, 56 + i * 32));
+          return indices.map(i => decodeAddr(accInfo.data, 56 + i * addressSize));
         });
 
         return [...staticAddrs, ...dynamicAddrs];
@@ -343,7 +343,7 @@ export class ForkSvm {
     //the programId account contains the address of the program data account
     //  (it's a PDA of bpfUpgradeableLoader using the programId as its seed)
     const unfetchedUpgradable = fetched
-      .filter(([acc]) => acc?.executable && acc.owner === bpfUpgradeableLoaderProgramId)
+      .filter(([acc]) => acc?.executable && acc.owner === bpfLoaderUpgradeableProgramId)
       //the first 4 bytes of a bpf upgradeable loader account are the encoded enum type
       //see https://bonfida.github.io/doc-dex-program/solana_program/bpf_loader_upgradeable/enum.UpgradeableLoaderState.html#variant.ProgramData
       .map(([acc, pId]) => [decodeAddr(acc!.data, 4), pId] as const)

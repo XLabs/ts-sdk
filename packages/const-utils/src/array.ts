@@ -1,3 +1,5 @@
+import type { RoUint8Array } from "./typing.js";
+
 import type {
   RoPair,
   Tuple,
@@ -7,10 +9,15 @@ import type {
   IsAny,
 } from "./typing.js";
 
-export function isArray<T>(x: T | RoArray<T>): x is RoArray<T>;
-export function isArray<T>(x: T | T[]): x is T[];
-export function isArray(x: unknown): x is RoArray<unknown> {
-  return Array.isArray(x);
+export function isArray<T, U>(val: T | RoArray<U>): val is RoArray<U>;
+export function isArray<T, U>(val: T | U[]): val is U[];
+export function isArray(val: unknown): val is RoArray<unknown> {
+  return Array.isArray(val);
+}
+
+//works across realms
+export function isUint8Array<T>(value: T): value is T extends RoUint8Array ? T : T & Uint8Array {
+  return Object.prototype.toString.call(value) === "[object Uint8Array]";
 }
 
 export type RoTuple2D<T = unknown> = RoTuple<RoTuple<T>>;
@@ -51,6 +58,7 @@ export const range = <const L extends number>(length: L) =>
   [...Array.from({ length }).keys()] as Range<L>;
 
 export type MaybeArray<T> = T | RoArray<T>;
+export type ElementOf<P> = P extends RoArray<infer T> ? T : P;
 
 type MapTuple<A extends RoTuple, R> =
   [...{ [K in keyof A]: K extends `${number}` ? R : never }];
@@ -59,7 +67,6 @@ export type MapArrayness<P, R> =
   ? PreserveReadonly<P, P extends RoTuple ? MapTuple<P, R> : R[]>
   : R;
 
-type ElementOf<P> = P extends RoArray<infer T> ? T : P;
 type MapFunc<P> = (value: ElementOf<P>) => unknown;
 type MappedRet<P, F extends MapFunc<P>> = MapArrayness<P, ReturnType<F>>;
 export type MapTo<P> = <F extends MapFunc<P>>(f: F) => MappedRet<P, F>;

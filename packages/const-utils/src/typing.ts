@@ -4,6 +4,14 @@ export type RoTuple  <T = unknown> = Readonly<Tuple<T>>;
 export type RoNeTuple<T = unknown> = Readonly<NeTuple<T>>;
 export type RoArray  <T = unknown> = readonly T[];
 export type RoPair   <T = unknown, U = unknown> = readonly [T, U];
+
+//from here: https://github.com/microsoft/TypeScript/issues/37792#issuecomment-1140888933
+//same as @solana/kit's ReadonlyUint8Array
+type TypedArrayMutableProperties = "copyWithin" | "fill" | "reverse" | "set" | "sort";
+export interface RoUint8Array extends Omit<Uint8Array, TypedArrayMutableProperties> {
+  readonly [n: number]: number;
+}
+
 //Function is is a generic overload of the built-in type
 //  It should work as a more powerful drop-in replacement.
 //  Since the built-in type is not generic and permissive, we have to use RoArray<any> as the
@@ -12,6 +20,7 @@ export type RoPair   <T = unknown, U = unknown> = readonly [T, U];
 // type Test = TestFunc extends Function ? true : false; //true for built-in
 export type Function<P extends RoArray<unknown> = RoArray<any>, R = unknown> =
   (...args: P) => R;
+
 
 export type Simplify<T> = { [K in keyof T]: T[K] } & unknown;
 

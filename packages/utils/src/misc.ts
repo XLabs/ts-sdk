@@ -1,7 +1,5 @@
 import type { Brand, IsBranded } from "./branding.js";
 
-export type TODO = any;
-
 //Extend this type to create an object-like interface which is expected to be overridden,
 //  e.g. via a type declaration. An empty interface is equivalent to `any`, and allows values
 //  which are not object-like such as numbers or strings. A `Record<PropertyKey, never>` prohibits
@@ -10,7 +8,6 @@ export type BaseObject = object;
 
 export type Text = Brand<string, "Text">;
 export type Url = Brand<string, "Url">;
-export type Size = Brand<number, "Size">;
 
 export interface BrandedSubArray<T extends Uint8Array> extends Uint8Array {
   subarray(
@@ -31,9 +28,4 @@ export function throws(fn: () => unknown): boolean {
   } catch {
     return true;
   }
-}
-
-//works across realms
-export function isUint8Array(value: unknown): value is Uint8Array {
-  return Object.prototype.toString.call(value) === "[object Uint8Array]";
 }

@@ -1,11 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@xlabs-xyz/fork-svm",
+  "name": "@xlabs-xyz/common",
   "version": "1.0.0",
   "author": "xLabs",
   "license": "Apache-2.0",
-  "description": "Solana fork testing utility based on LiteSVM",
-  "keywords": ["solana", "SVM", "fork", "test"],
+  "description": "",
+  "keywords": ["encoding", "aliasing"],
   "repository": {
     "type": "git",
     "url": "https://github.com/xlabs/ts-sdk"
@@ -27,18 +27,15 @@
     "README.md"
   ],
   "scripts": {
-    "build": "pnpm build:litesvm && tsc && mkdir -p dist/liteSvm && cp src/liteSvm/litesvm.*.node dist/liteSvm/",
     "prepublishOnly": "pnpm test && pnpm build",
-    "build:litesvm": "node scripts/platformBinaryExists.js || scripts/build.sh",
-    "build:litesvm:force": "scripts/build.sh",
-    "test": "echo \"No tests yet\" && exit 0",
+    "build": "tsc",
+    "test": "tsx --test tests/**/*.test.ts",
     "clean": "rm -rf ./dist"
   },
   "dependencies": {
     "@xlabs-xyz/const-utils": "workspace:*",
-    "@xlabs-xyz/svm": "workspace:*",
-    "@solana/kit": "catalog:",
-    "@solana/rpc-spec": "catalog:",
-    "@solana/rpc-spec-types": "catalog:"
+    "@xlabs-xyz/binary-layout": "workspace:*",
+    "@xlabs-xyz/amount": "workspace:*",
+    "@xlabs-xyz/utils": "workspace:*"
   }
 }

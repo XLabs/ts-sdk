@@ -3,3 +3,8 @@ packages:
 
 ignoredBuiltDependencies:
   - esbuild
+
+catalog:
+  "@solana/kit": "^5.0.0"
+  "@solana/rpc-spec": "^5.0.0"
+  "@solana/rpc-spec-types": "^5.0.0"

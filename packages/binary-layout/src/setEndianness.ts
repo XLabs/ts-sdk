@@ -1,0 +1,117 @@
+import type { RoArray, RoPair } from "@xlabs-xyz/const-utils";
+import type {
+  Endianness,
+  Layout,
+  ProperLayout,
+  Item,
+  NumItem,
+  BytesItem,
+  ArrayItem,
+  LengthPrefixed,
+  SwitchItem,
+} from "./layout.js";
+
+import { isItem } from "./utils.js";
+
+export function setEndianness<const L extends Layout, E extends Endianness>(
+  layout: L,
+  endianness: E,
+): SetEndianness<L, E> {
+  return isItem(layout)
+    ? setItemEndianness(layout, endianness)
+    : (layout as ProperLayout).map(item => setItemEndianness(item, endianness)) as any;
+}
+
+function setItemEndianness(item: Item, endianness: Endianness): any {
+  switch (item.binary) {
+    case "uint":
+    case "int":
+      return item?.size === 1 ? item : { ...item, endianness };
+    case "bytes":
+    case "array": {
+      const layout = "layout" in item
+        ? { layout: setEndianness(item.layout, endianness) }
+        : {};
+      const lengthEndianness = ("lengthSize" in item && item.lengthSize !== 1)
+        ? { lengthEndianness: endianness }
+        : {};
+      return { ...item, ...layout, ...lengthEndianness };
+    }
+    case "switch": {
+      const idEndianness = item.idSize !== 1 ? { idEndianness: endianness } : {};
+      const layouts = item.layouts.map(([id, layout]) => [id, setEndianness(layout, endianness)]);
+      return { ...item, ...idEndianness, layouts };
+    }
+  }
+}
+
+//reminder: this will not propagate through custom conversions that use layouts themselves!
+//
+//All the "extras" in this type are to tell tsc about type invariants when writing functions
+//  that accept layouts as const generic parameters, otherwise when running e.g. a generic type
+//  like `const L extends ProperLayout` through setEndianness, tsc will fail to realize that the
+//  result is also guaranteed to be a ProperLayout, which sucks for chaining.
+export type SetEndianness<L extends Layout, E extends Endianness> =
+    Layout       extends L ? Layout
+  : ProperLayout extends L ? ProperLayout
+  : Item         extends L ? Item
+  : L extends infer LI extends Item
+  ? SetItemEndianness<LI, E> extends infer R extends Item
+    ? R
+    : never
+  : L extends infer P extends ProperLayout
+  ? SetProperLayoutEndianness<P, E> extends infer R extends ProperLayout
+    ? R
+    : never
+  : never;
+
+type SetItemEndianness<I extends Item, E extends Endianness> =
+  I extends NumItem
+  ? I["size"] extends 1
+    ? I
+    : SetProperty<I, "endianness", E>
+  : I extends BytesItem | ArrayItem
+  ? RecurseLayoutProperty<I, E> extends infer RI extends Item
+    ? RI extends LengthPrefixed
+      ? RI["lengthSize"] extends 1
+        ? RI
+        : SetProperty<RI, "lengthEndianness", E>
+      : RI
+    : never
+  : I extends SwitchItem
+  ? RecurseSwitchItem<I, E> extends infer RI extends SwitchItem
+    ? RI["idSize"] extends 1
+      ? RI
+      : SetProperty<RI, "idEndianness", E>
+    : never
+  : never;
+
+type SetProperLayoutEndianness<P extends ProperLayout, E extends Endianness> =
+  P extends readonly [infer H extends Item, ...infer T extends ProperLayout]
+  ? readonly [SetItemEndianness<H, E>, ...SetProperLayoutEndianness<T, E>]
+  : readonly [];
+
+type RecurseLayoutProperty<I extends Item, E extends Endianness> =
+  "layout" extends keyof I
+  ? I["layout"] extends Layout
+    ? SetProperty<I, "layout", SetEndianness<I["layout"], E>>
+    : never
+  : I;
+
+type RecurseSwitchItemImpl<SL extends RoArray, E extends Endianness> =
+  SL extends readonly [
+    RoPair<infer Id, infer P extends ProperLayout>,
+    ...infer T extends RoArray
+  ]
+  ? readonly [RoPair<Id, SetProperLayoutEndianness<P, E>>, ...RecurseSwitchItemImpl<T, E>]
+  : readonly [];
+
+type RecurseSwitchItem<I extends SwitchItem, E extends Endianness> =
+  SetProperty<I, "layouts", RecurseSwitchItemImpl<I["layouts"], E>>;
+
+//Omit<I, P> & { readonly [K in P]: E }
+type SetProperty<I extends Item, P extends string, V> =
+  { readonly [K in keyof I | P]: K extends P ? V : K extends keyof I ? I[K] : never } extends
+    infer R extends Item
+  ? R
+  : never;

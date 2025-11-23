@@ -14,7 +14,6 @@ export class Amount<K extends Kind> {
     (amount: Rationalish | string, unitSymbol: SymbolsOf<K>) => Amount<K>;
   static ofKind(kind: Kind) {
     return (amount: Rationalish | string, unitSymbol?: string) =>
-
       (Amount.from as any)(amount, kind, unitSymbol ?? kind.human);
   }
 

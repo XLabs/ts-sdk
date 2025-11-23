@@ -1,12 +1,12 @@
 // This file implements a hack to make large unions more readable in IDE tooltips.
 //
 // It provides a way to turn a union type like: `type Letter = "a" | "b" | ... | "z";` which
-//   tsc always expands to the full union in tool tips instead of sticking with the custom Letter
-//   type to something very close.
+//   tsc always expands to the full union in tool tips (instead of sticking with the custom `Letter`
+//   type) to something much closer to the original.
 //
 // # Basic Usage Example
 //
-// ```typescript
+// ```
 // type Letter = "a" | "b" | "c" | "d" | "e" | "f";
 // interface AllLetters extends SuppressExpansion<Letter> {}
 //
@@ -21,7 +21,7 @@
 //
 // Additionally, we can register additional subsets to collapse just those:
 //
-// ```typescript
+// ```
 // interface AandB extends SuppressExpansion<"a" | "b"> {}
 // interface CandD extends SuppressExpansion<"c" | "d"> {}
 // interface LetterAliases {
@@ -39,7 +39,7 @@
 // If the union we pass in can be equally well matched by multiple combinations of subsets,
 //   then we end up with a fully expanded union again:
 //
-// ```typescript
+// ```
 // interface AandBandC extends SuppressExpansion<"a" | "b" | "c"> {}
 //
 // interface LetterAliases {
@@ -50,7 +50,7 @@
 // type Test5 = ApplyAliases<LetterAliases, "a" | "b" | "c" | "f">;
 // ```
 //
-// ```typescript
+// ```
 // interface AandC extends SuppressExpansion<"a" | "c"> {}
 // interface BandD extends SuppressExpansion<"b" | "d"> {}
 // interface LetterAliases {

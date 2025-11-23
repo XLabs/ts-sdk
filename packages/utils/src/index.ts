@@ -4,4 +4,4 @@ export * from "./branding.js";
 export * from "./hashing.js";
 export * from "./misc.js";
 export * from "./bigintJson.js";
-export * as encoding from "./encoding.js";
+export * from "./encoding.js";

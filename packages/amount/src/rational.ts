@@ -11,8 +11,14 @@ export class Rational {
     Rational.defaultPrecision = Rational.checkPrecision(precision);
   }
 
+  private readonly n: bigint;
+  private readonly d: ubigint;
+
   //class invariants: n and d are always coprime, d is always positive
-  private constructor(private readonly n: bigint, private readonly d: ubigint) {}
+  private constructor(n: bigint, d: ubigint) {
+    this.n = n;
+    this.d = d;
+  }
 
   //the first signature has to be Rationalish and not just Rational because otherwise tsc complains
   //  when trying to call from with a Rationalish type because it fails to realize that for each
@@ -94,15 +100,20 @@ export class Rational {
   }
 
   floor(): bigint {
-    return this.n / this.d;
+    const intPart = this.n / this.d;
+    return this.n < 0n && this.n % this.d !== 0n ? intPart - 1n : intPart;
   }
 
   ceil(): bigint {
-    return (this.n + this.d - 1n) / this.d;
+    const intPart = this.n / this.d;
+    return this.n > 0n && this.n % this.d !== 0n ? intPart + 1n : intPart;
   }
 
   round(): bigint {
-    return (this.n + this.d / 2n) / this.d;
+    const num = this.n * 2n + this.d;
+    const den = this.d * 2n;
+    const intPart = num / den;
+    return num < 0n && num % den !== 0n ? intPart - 1n : intPart;
   }
 
   toNumber(): number {
@@ -110,16 +121,39 @@ export class Rational {
   }
 
   toString(): string {
-    return this.toNumber().toString();
+    return this.toFixedPoint(Rational.defaultPrecision);
   }
 
   toFixed(precision: number = 0): string {
-    const intPart = (this.n / this.d).toString();
-    if (precision === 0)
-      return intPart;
+    const multiplier = 10n ** BigInt(precision);
+    const nAbs = Rational.stripSign(this.n);
+    const val = (nAbs * multiplier + this.d / 2n) / this.d;
+    const sign = this.n < 0n && val !== 0n ? "-" : "";
 
-    const fracPart = (Number(this.n % this.d) / Number(this.d)).toFixed(precision);
-    return intPart + fracPart.slice(1);
+    if (precision === 0)
+      return sign + val.toString();
+
+    const valStr = val.toString().padStart(precision + 1, "0");
+    const intPartStr  = valStr.slice(0, -precision);
+    const fracPartStr = valStr.slice(-precision);
+
+    return sign + intPartStr + "." + fracPartStr;
+  }
+
+  //like toFixed, but without the trailing zeros
+  toFixedPoint(precision: number): string {
+    const str = this.toFixed(precision);
+    if (!str.includes("."))
+      return str;
+
+    let end = str.length - 1;
+    while (end >= 0 && str[end] === "0")
+      --end;
+
+    if (end >= 0 && str[end] === ".")
+      --end;
+
+    return str.slice(0, end + 1);
   }
 
   eq(other: Rationalish): boolean {
@@ -222,8 +256,8 @@ export class Rational {
       }
 
       default: {
-        const gcd1 = Rational.gcd(this.n, other.d);
-        const gcd2 = Rational.gcd(other.n, this.d);
+        const gcd1 = Rational.gcd(Rational.stripSign(this.n), other.d);
+        const gcd2 = Rational.gcd(Rational.stripSign(other.n), this.d);
         const num = (this.n / gcd1) * (other.n / gcd2);
         const den = (this.d / gcd2) * (other.d / gcd1);
         return new Rational(num, den);

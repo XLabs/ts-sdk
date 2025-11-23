@@ -7,6 +7,13 @@ import type {
   AccountInfoWithBase64EncodedData,
 } from "@solana/kit";
 import { getBase64Codec, getAddressDecoder } from "@solana/kit";
+import {mapTo} from "@xlabs-xyz/const-utils";
+import {
+  systemProgramId,
+  builtInProgramIds,
+  sysvarIds,
+  defaultProgramIds,
+} from "@xlabs-xyz/svm";
 import type { AccountInfo as SvmAccountInfo } from "./liteSvm.js";
 
 export type KitAccountInfo = AccountInfoBase & AccountInfoWithBase64EncodedData;
@@ -14,11 +21,6 @@ export { type SvmAccountInfo };
 
 export type MaybeKitAccInfo = KitAccountInfo | null;
 export type MaybeSvmAccInfo = SvmAccountInfo | null;
-
-export const [systemProgramId, bpfUpgradeableLoaderProgramId] = [
-  "11111111111111111111111111111111"            as Address,
-  "BPFLoaderUpgradeab1e11111111111111111111111" as Address,
-] as const;
 
 export const emptyAccountInfo = {
   executable: false,
@@ -28,41 +30,8 @@ export const emptyAccountInfo = {
   data: new Uint8Array(),
 } as const satisfies SvmAccountInfo;
 
-export const [builtInProgramIds, sysvarProgramIds, defaultPrograms] = ([
-  [ //see https://github.com/anza-xyz/solana-sdk/blob/master/sdk-ids/src/lib.rs
-    systemProgramId,
-    bpfUpgradeableLoaderProgramId,
-    "Config1111111111111111111111111111111111111",
-    "Stake11111111111111111111111111111111111111",
-    "Vote111111111111111111111111111111111111111",
-    "AddressLookupTab1e1111111111111111111111111",
-    "Ed25519SigVerify111111111111111111111111111",
-    "KeccakSecp256k11111111111111111111111111111",
-    "NativeLoader1111111111111111111111111111111",
-    "BPFLoader1111111111111111111111111111111111",
-    "BPFLoader2111111111111111111111111111111111",
-    "ComputeBudget111111111111111111111111111111",
-  ], [ //see https://docs.solanalabs.com/runtime/sysvars/
-    "SysvarC1ock11111111111111111111111111111111",
-    "SysvarEpochSchedu1e111111111111111111111111",
-    "SysvarFees111111111111111111111111111111111",
-    "Sysvar1nstructions1111111111111111111111111",
-    "SysvarRecentB1ockHashes11111111111111111111",
-    "SysvarRent111111111111111111111111111111111",
-    "SysvarS1otHashes111111111111111111111111111",
-    "SysvarS1otHistory11111111111111111111111111",
-    "SysvarStakeHistory1111111111111111111111111",
-    "SysvarEpochRewards1111111111111111111111111",
-    "SysvarLastRestartS1ot1111111111111111111111",
-  ], [
-    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-    "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo",
-    "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
-    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-  ],
-]).map(pids => new Set(pids)) as [Set<Address>, Set<Address>, Set<Address>];
-
+export const [builtInSet, sysvarSet, defProgSet] =
+  mapTo([builtInProgramIds, sysvarIds, defaultProgramIds])(pids => new Set<Address>(pids));
 
 export const decodeAddr = (bytes: ReadonlyUint8Array, offset: number = 0) =>
   getAddressDecoder().decode(bytes.subarray(offset, offset + 32));

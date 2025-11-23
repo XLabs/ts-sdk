@@ -4,6 +4,18 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@solana/kit':
+      specifier: ^5.0.0
+      version: 5.0.0
+    '@solana/rpc-spec':
+      specifier: ^5.0.0
+      version: 5.0.0
+    '@solana/rpc-spec-types':
+      specifier: ^5.0.0
+      version: 5.0.0
+
 importers:
 
   .:
@@ -20,22 +32,67 @@ importers:
 
   packages/amount: {}
 
+  packages/binary-layout:
+    dependencies:
+      '@xlabs-xyz/const-utils':
+        specifier: workspace:*
+        version: link:../const-utils
+
+  packages/common:
+    dependencies:
+      '@xlabs-xyz/amount':
+        specifier: workspace:*
+        version: link:../amount
+      '@xlabs-xyz/binary-layout':
+        specifier: workspace:*
+        version: link:../binary-layout
+      '@xlabs-xyz/const-utils':
+        specifier: workspace:*
+        version: link:../const-utils
+      '@xlabs-xyz/utils':
+        specifier: workspace:*
+        version: link:../utils
+
   packages/const-utils: {}
 
   packages/fork-svm:
     dependencies:
       '@solana/kit':
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(ws@8.18.3)
       '@solana/rpc-spec':
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0(typescript@5.9.3)
       '@solana/rpc-spec-types':
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.0.0(typescript@5.9.3)
       '@xlabs-xyz/const-utils':
         specifier: workspace:*
         version: link:../const-utils
+      '@xlabs-xyz/svm':
+        specifier: workspace:*
+        version: link:../svm
+
+  packages/svm:
+    dependencies:
+      '@solana/kit':
+        specifier: 'catalog:'
+        version: 5.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(ws@8.18.3)
+      '@xlabs-xyz/amount':
+        specifier: workspace:*
+        version: link:../amount
+      '@xlabs-xyz/binary-layout':
+        specifier: workspace:*
+        version: link:../binary-layout
+      '@xlabs-xyz/common':
+        specifier: workspace:*
+        version: link:../common
+      '@xlabs-xyz/const-utils':
+        specifier: workspace:*
+        version: link:../const-utils
+      '@xlabs-xyz/utils':
+        specifier: workspace:*
+        version: link:../utils
 
   packages/utils:
     dependencies:
@@ -48,6 +105,9 @@ importers:
       '@scure/base':
         specifier: ^1.2.4
         version: 1.2.6
+      '@xlabs-xyz/const-utils':
+        specifier: workspace:*
+        version: link:../const-utils
 
 packages:
 

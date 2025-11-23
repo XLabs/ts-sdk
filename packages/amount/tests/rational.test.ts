@@ -135,22 +135,34 @@ describe("Rational", () => {
 
     it("toFixed", () => {
       assert.strictEqual(half.toFixed(2), "0.50");
-      assert.strictEqual(half.toFixed(), "0");
+      assert.strictEqual(half.toFixed(), "1"); // round(0.5) -> 1
+      assert.strictEqual(Rational.from( 1n, 3n).toFixed(2), "0.33");
+      assert.strictEqual(Rational.from( 4n, 1n).toFixed(2), "4.00");
+      assert.strictEqual(Rational.from(-1n, 4n).toFixed(2), "-0.25");
+      assert.strictEqual(Rational.from(-5n, 4n).toFixed(2), "-1.25");
+      assert.strictEqual(Rational.from(-4n, 1n).toFixed(2), "-4.00");
+      assert.strictEqual(Rational.from(-1n, 3n).toFixed(2), "-0.33");
     });
 
     it("floor", () => {
       assert.strictEqual(half.floor(), 0n);
       assert.strictEqual(Rational.from(3n, 2n).floor(), 1n);
+      assert.strictEqual(Rational.from(-1n, 2n).floor(), -1n);
+      assert.strictEqual(Rational.from(-5n, 2n).floor(), -3n);
     });
 
     it("ceil", () => {
       assert.strictEqual(half.ceil(), 1n);
       assert.strictEqual(Rational.from(3n, 2n).ceil(), 2n);
+      assert.strictEqual(Rational.from(-1n, 2n).ceil(), 0n);
+      assert.strictEqual(Rational.from(-5n, 2n).ceil(), -2n);
     });
 
     it("round", () => {
       assert.strictEqual(half.round(), 1n);
       assert.strictEqual(Rational.from(1n, 4n).round(), 0n);
+      assert.strictEqual(Rational.from(-1n, 2n).round(), 0n);
+      assert.strictEqual(Rational.from(-5n, 2n).round(), -2n);
     });
   });
 
