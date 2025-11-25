@@ -44,3 +44,29 @@ export type Extends<T, U> = T extends U ? true : false;
 
 //see here: https://stackoverflow.com/a/55541672
 export type IsAny<T> = Extends<0, 1 & T>;
+
+//helper for when TypeScript can't infer that a type will be another type after instantiation.
+//e.g.
+//```
+//const doSomethingWithLayout = <const L extends ProperLayout>(layout: L) => { ... };
+//
+//const layoutBuilder = <const I extends Item>(item: I) =>
+//  [fixedItem, {name: "foo", ...item}] as const;
+//
+//doSomethingWithLayout(layoutBuilder({ binary: "uint", size: 8 })); //<< error!
+//```
+//The type returned by `layoutBuilder` will not be recognized as a ProperLayout, because it
+//  struggles with `...item` (and there's no good way to help it along).
+//
+//This, however, will fix it:
+//```
+//const layoutBuilder = <const I extends Item>(item: I) =>
+//  assertType<ProperLayout>()([fixedItem, {name: "foo", ...item}])
+//```
+//
+//`const assertType = <T, const V>(val: V) ...` does not work since TypeScript does not
+//  support partial instantiation of generic types, hence the ugly intermediary.
+export const assertType =
+  <T>() =>
+    <const V>(val: V): V extends T ? V : never =>
+      val as any;

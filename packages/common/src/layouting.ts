@@ -10,8 +10,9 @@ import type {
   Item,
   CustomConversion,
   NumberSize,
+  Endianness,
 } from "@xlabs-xyz/binary-layout";
-import { numberMaxSize } from "@xlabs-xyz/binary-layout";
+import { numberMaxSize, defaultEndianness } from "@xlabs-xyz/binary-layout";
 import { bignum } from "@xlabs-xyz/utils";
 import type {
   Rationalish,
@@ -49,6 +50,41 @@ export const byteSwitchItem = <
   const L extends RoTuple,
 >(idTag: I, layouts: L) =>
   ({ binary: "switch", idSize: 1, idTag, layouts } as const);
+
+// ---- timestamp Conversion/Item ----
+
+const numberTimestampConversion = {
+  to: (value: number) => new Date(value * 1000),
+  from: (value: Date) => Math.floor(value.getTime() / 1000),
+} as const;
+
+const bigintTimestampConversion = {
+  to: (value: bigint) => new Date(Number(value) * 1000),
+  from: (value: Date) => BigInt(value.getTime() / 1000),
+} as const;
+
+export const timestampConversion =
+  <S extends number>(size: S):
+    number extends S
+    ? never
+    : S extends NumberSize
+    ? typeof numberTimestampConversion
+    : typeof bigintTimestampConversion => (
+  size > numberMaxSize
+    ? bigintTimestampConversion
+    : numberTimestampConversion
+  ) as any;
+
+export const timestampItem = <
+  B extends "int" | "uint",
+  S extends number,
+  E extends Endianness = typeof defaultEndianness
+  >(binary: B, size: S, endianness?: E) => ({
+    binary,
+    size,
+    custom: timestampConversion(size),
+    endianness: endianness ?? defaultEndianness,
+  } as const);
 
 // ---- Amount / Conversion / Linear Transform ----
 

@@ -140,7 +140,7 @@ export class Rational {
     return sign + intPartStr + "." + fracPartStr;
   }
 
-  //like toFixed, but without the trailing zeros
+  //like toFixed, but without any trailing zeros
   toFixedPoint(precision: number): string {
     const str = this.toFixed(precision);
     if (!str.includes("."))

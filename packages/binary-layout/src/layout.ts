@@ -169,7 +169,9 @@ export type DeriveType<L extends Layout> =
 
 type ItemToType<II extends Item> =
   II extends infer I extends Item
-  ? I extends NumItem
+  ? I extends { readonly omit: true }
+    ? undefined
+    : I extends NumItem
     ? NumItemToType<I>
     : I extends BytesItem
     ? BytesItemToType<I>

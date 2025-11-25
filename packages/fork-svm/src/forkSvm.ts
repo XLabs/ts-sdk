@@ -137,10 +137,17 @@ export class ForkSvm {
 
   async advanceToNow() {
     if (this.rpc) {
+      const [slot, epochInfo] = await Promise.all([
+        this.rpc.getSlot().send(),
+        this.rpc.getEpochInfo().send(),
+      ]);
+  
       const clock = this.liteSvm.getClock();
-      clock.slot = await this.rpc.getSlot().send();
-      clock.unixTimestamp = await this.rpc.getBlockTime(clock.slot).send();
-      //only setting the essentials, skipping all the epoch and leader schedule stuff
+      clock.slot = slot;
+      clock.unixTimestamp = await this.rpc.getBlockTime(slot).send();
+      clock.epoch = epochInfo.epoch;
+      clock.epochStartTimestamp = clock.unixTimestamp;
+      clock.leaderScheduleEpoch = epochInfo.epoch + 1n;
       this.liteSvm.setClock(clock);
     }
   }

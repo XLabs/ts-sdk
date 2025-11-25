@@ -41,7 +41,6 @@ export const discriminatorOf = (type: DiscriminatorType, name: string) =>
 //  entirely beyond me.
 export const anchorEmitCpiDiscriminator = discriminatorOf("anchor", "event").reverse();
 
-
 export type FirstSeed = RoUint8Array | string;
 const firstSeedToBytes = (seed: FirstSeed) =>
   typeof seed === "string" ? bytes.encode(seed) : seed as RoUint8Array;
@@ -70,7 +69,7 @@ const calcRawPda = <S extends string>(seeds: Seeds<S>, bump: number, programId: 
   sha256(bytes.concat(
     bytifySeeds(seeds),
     new Uint8Array([bump]),
-    bytes.encode(programId),
+    base58.decode(programId),
     pdaStrConst,
   ));
 
@@ -84,7 +83,10 @@ export const calcPda =
 const isOffCurve = (rawAddress: RoUint8Array) =>
   throws(() => ed25519.Point.fromHex(rawAddress as Uint8Array));
 
-export function findPda<S extends string>(seeds: Seeds<S>, programId: Address): [Address, number] {
+export function findPdaAndBump<S extends string>(
+  seeds: Seeds<S>,
+  programId: Address
+): [Address, number] {
   let bump = 255;
   seeds = bytifySeeds(seeds);
   while (true) { //P(not finding a valid PDA) << P(cosmic ray mucking up the computation)
@@ -96,12 +98,15 @@ export function findPda<S extends string>(seeds: Seeds<S>, programId: Address): 
   }
 }
 
+export const findPda = <S extends string>(seeds: Seeds<S>, programId: Address): Address =>
+  findPdaAndBump(seeds, programId)[0];
+
 export const findAta = (
   owner: Address,
   mint: Address,
   tokenProgram: Address = tokenProgramId,
 ): Address =>
-  findPda(["", owner, tokenProgram, mint], associatedTokenProgramId)[0];
+  findPda(["", owner, tokenProgram, mint], associatedTokenProgramId);
 
 export const minimumBalanceForRentExemption = (size: number): Lamports =>
   BigInt(emptyAccountSize + size) * lamportsPerByte as Lamports;

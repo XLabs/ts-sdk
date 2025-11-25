@@ -215,38 +215,3 @@ export const stringConversion = {
   to:   (encoded: RoUint8Array) => textDecoder.decode(encoded as Uint8Array),
   from: (decoded: string      ) => textEncoder.encode(decoded),
 } as const satisfies CustomConversion<RoUint8Array, string>;
-
-//-------------------------------- timestampConversion --------------------------------
-
-const numberTimestampConversion = {
-  to: (value: number) => new Date(value * 1000),
-  from: (value: Date) => Math.floor(value.getTime() / 1000),
-} as const;
-
-const bigintTimestampConversion = {
-  to: (value: bigint) => new Date(Number(value) * 1000),
-  from: (value: Date) => BigInt(value.getTime() / 1000),
-} as const;
-
-export const timestampConversion =
-  <S extends number>(size: S):
-    number extends S
-    ? never
-    : S extends NumberSize
-    ? typeof numberTimestampConversion
-    : typeof bigintTimestampConversion => (
-  size > numberMaxSize
-    ? bigintTimestampConversion
-    : numberTimestampConversion
-  ) as any;
-
-export const timestampItem = <
-  B extends "int" | "uint",
-  S extends number,
-  E extends Endianness = "big"
-  >(binary: B, size: S, endianness?: E) => ({
-    binary,
-    size,
-    custom: timestampConversion(size),
-    ...{ endianness: endianness ?? "big" },
-  } as const);

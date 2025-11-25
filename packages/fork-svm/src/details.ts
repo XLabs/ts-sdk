@@ -7,7 +7,7 @@ import type {
   AccountInfoWithBase64EncodedData,
 } from "@solana/kit";
 import { getBase64Codec, getAddressDecoder } from "@solana/kit";
-import {mapTo} from "@xlabs-xyz/const-utils";
+import { mapTo } from "@xlabs-xyz/const-utils";
 import {
   systemProgramId,
   builtInProgramIds,
@@ -41,7 +41,10 @@ export const decodeAddr = (bytes: ReadonlyUint8Array, offset: number = 0) =>
 //  order bits are used to indicate continuation.
 //But seeing how Solana transactions are at most 1232 bytes, there's no way that we'll ever
 //  have more than 2^14 of anything (not even bits).
-export const decodeCompactU16 = (bytes: ReadonlyUint8Array, offset: number): [number, number] =>
+export const decodeCompactU16 = (
+  bytes: ReadonlyUint8Array,
+  offset: number
+): [value: number, offset: number] =>
   bytes[offset]! < 0x80
   ? [ bytes[offset]!,                                   offset + 1] as const
   : [(bytes[offset]! - 0x80) << 8 | bytes[offset + 1]!, offset + 2] as const;

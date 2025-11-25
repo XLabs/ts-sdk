@@ -1,5 +1,11 @@
 import { Address, Lamports } from "@solana/kit";
-import { type RoUint8Array, valueIndexEntries, isArray } from "@xlabs-xyz/const-utils";
+import {
+  type RoUint8Array,
+  valueIndexEntries,
+  isArray,
+  omit,
+  assertType,
+} from "@xlabs-xyz/const-utils";
 import type {
   NumberSize,
   CustomizableBytes,
@@ -15,17 +21,11 @@ import {
   boolItem,
   enumItem,
   setEndianness,
-  serialize,
-  deserialize,
   unwrapSingleton,
   stringConversion,
 } from "@xlabs-xyz/binary-layout";
 import { type KindWithAtomic } from "@xlabs-xyz/amount";
-import {
-  paddingItem,
-  amountItem,
-  hashItem,
-} from "@xlabs-xyz/common";
+import { amountItem, hashItem } from "@xlabs-xyz/common";
 import { base58, bytes } from "@xlabs-xyz/utils";
 import { type DiscriminatorType, discriminatorOf } from "./utils.js";
 import { zeroAddress, addressSize } from "./constants.js";
@@ -71,7 +71,10 @@ const discriminatedItem = <const I extends Item>(
   type: DiscriminatorType,
   name: string,
   item: I,
-) => unwrapSingleton([discriminatorItem(type, name), { ...item, name: "singleton" }]);
+) =>
+  unwrapSingleton(assertType<ProperLayout>()(
+    [discriminatorItem(type, name), { name: "singleton", ...item }]
+  ));
 
 const discriminatedProperLayout = <const L extends ProperLayout>(
   type: DiscriminatorType,
@@ -80,7 +83,9 @@ const discriminatedProperLayout = <const L extends ProperLayout>(
 ) => [discriminatorItem(type, name), ...layout] as const;
 
 type DiscriminatedLayout<L extends Layout> =
-  L extends Item
+  L extends readonly []
+  ? Omit<ReturnType<typeof discriminatorItem>, "name">
+  : L extends Item
   ? ReturnType<typeof discriminatedItem<L>>
   : L extends ProperLayout
   ? ReturnType<typeof discriminatedProperLayout<L>>
@@ -91,7 +96,9 @@ const discriminatedLayout = <const L extends Layout>(
   layout: L,
 ): DiscriminatedLayout<L> => (
   isArray(layout)
-  ? discriminatedProperLayout(type, name, layout as ProperLayout)
+  ? layout.length === 0
+    ? omit(discriminatorItem(type, name), "name")
+    : discriminatedProperLayout(type, name, layout as ProperLayout)
   : discriminatedItem(type, name, layout as Item)
 ) as any;
 
@@ -113,9 +120,8 @@ export const cEnumItem = <const E extends readonly string[]>(names: E, size: Num
 
 // named after https://docs.rs/solana-program-option/latest/solana_program_option/enum.COption.html
 const baseCOptionLayout = <const L extends Layout>(layout: L) => [
-  { name: "padding", ...paddingItem(3)       },
-  { name: "isSome",  ...boolItem()           },
-  { name: "value",   binary: "bytes", layout },
+  { name: "isSome",  ...boolItem(), size: 4, endianness: "little" },
+  { name: "value",   binary: "bytes", layout                      },
 ] as const;
 type BaseCOptionLayout<L extends Layout> = DeriveType<ReturnType<typeof baseCOptionLayout<L>>>;
 
@@ -196,7 +202,7 @@ export const durableNonceAccountLayout = [
 //DO NOT TRUST THE OUTDATED PROPOSAL:
 //  https://docs.solanalabs.com/proposals/off-chain-message-signing
 const signingDomain = "\xffsolana offchain"; //16 bytes
-const messageFormats = ["restrictedAscii", "limitedUtf8", "extendedUtf8"] as const;
+const messageFormats = ["RestrictedAscii", "LimitedUtf8", "ExtendedUtf8"] as const;
 export type OffchainMessageFormat = (typeof messageFormats)[number];
 export const offchainMessageLayout = [
   { name: "signingDomain", binary: "bytes", custom: bytes.encode(signingDomain), omit: true },
@@ -204,10 +210,3 @@ export const offchainMessageLayout = [
   { name: "messageFormat", ...enumItem(valueIndexEntries(messageFormats))                   },
   { name: "message",       ...vecBytesItem(stringConversion), lengthSize: 2                 },
 ] as const;
-
-export const OffchainMessage = {
-  serialize: (messageFormat: OffchainMessageFormat, message: string) =>
-    serialize(offchainMessageLayout, { messageFormat, message }),
-  deserialize: (encoded: RoUint8Array) =>
-    deserialize(offchainMessageLayout, encoded),
-}

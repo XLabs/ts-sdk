@@ -3,10 +3,16 @@ import type { Kind, KindWithHuman, Unit, SymbolsOf } from "./types.js";
 import type { Conversion } from "./conversion.js";
 
 export class Amount<K extends Kind> {
+  private readonly amount: Rational; //class invariant: stored in standard units
+  readonly kind: K;
+
   private constructor(
-    private readonly amount: Rational, //class invariant: stored in standard units
-    readonly kind: K,
-  ) {}
+    amount: Rational,
+    kind: K,
+  ) {
+    this.amount = amount;
+    this.kind = kind;
+  }
 
   static ofKind<const K extends KindWithHuman>(kind: K):
     (amount: Rationalish | string, unitSymbol?: SymbolsOf<K>) => Amount<K>;
@@ -32,7 +38,7 @@ export class Amount<K extends Kind> {
     kind: K,
     unitSymbol?: SymbolsOf<K>,
   ): Amount<K> {
-    const unit = Amount.getUnit(kind, unitSymbol);
+    const unit = Amount.getUnit(kind, unitSymbol ?? "human");
     amount = Rational.from(amount).mul(unit.scale);
     return new Amount(amount, kind);
   }
@@ -133,15 +139,17 @@ export class Amount<K extends Kind> {
     return this.kind.units[0];
   }
 
-  static getUnit<K extends Kind>(kind: K, unitSymbol?: SymbolsOf<K>): Unit {
-    const symbol = unitSymbol === undefined || unitSymbol === "human"
+  static getUnit<K extends Kind>(kind: K, unitSymbol: SymbolsOf<K>): Unit {
+    const symbol = 
+      unitSymbol === "human"
       ? kind.human
       : unitSymbol === "atomic"
       ? kind.atomic
       : unitSymbol;
-    // istanbul ignore if
+    
     if (symbol === undefined)
       throw new Error(`Unit ${unitSymbol} not found in kind ${kind.name}`);
+
     return kind.units.find(u => u.symbol === symbol)!;
   }
 
