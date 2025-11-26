@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@xlabs-xyz/common",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "xLabs",
   "license": "Apache-2.0",
   "description": "",
@@ -32,7 +32,13 @@
     "test": "tsx --test tests/**/*.test.ts",
     "clean": "rm -rf ./dist"
   },
-  "dependencies": {
+  "peerDependencies": {
+    "@xlabs-xyz/const-utils": "^1.0.1",
+    "@xlabs-xyz/binary-layout": "^1.0.1",
+    "@xlabs-xyz/amount": "^1.0.1",
+    "@xlabs-xyz/utils": "^1.0.1"
+  },
+  "devDependencies": {
     "@xlabs-xyz/const-utils": "workspace:*",
     "@xlabs-xyz/binary-layout": "workspace:*",
     "@xlabs-xyz/amount": "workspace:*",

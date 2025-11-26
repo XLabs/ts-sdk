@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@xlabs-xyz/fork-svm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "xLabs",
   "license": "Apache-2.0",
   "description": "Solana fork testing utility based on LiteSVM",
@@ -34,7 +34,14 @@
     "test": "echo \"No tests yet\" && exit 0",
     "clean": "rm -rf ./dist"
   },
-  "dependencies": {
+  "peerDependencies": {
+    "@xlabs-xyz/const-utils": "^1.0.1",
+    "@xlabs-xyz/svm": "^1.0.1",
+    "@solana/kit": "*",
+    "@solana/rpc-spec": "*",
+    "@solana/rpc-spec-types": "*"
+  },
+  "devDependencies": {
     "@xlabs-xyz/const-utils": "workspace:*",
     "@xlabs-xyz/svm": "workspace:*",
     "@solana/kit": "catalog:",
