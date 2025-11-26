@@ -1,11 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@xlabs-xyz/common",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "xLabs",
   "license": "Apache-2.0",
   "description": "",
-  "keywords": ["encoding", "aliasing"],
+  "keywords": [
+    "encoding",
+    "aliasing"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/xlabs/ts-sdk"
@@ -33,10 +36,10 @@
     "clean": "rm -rf ./dist"
   },
   "peerDependencies": {
-    "@xlabs-xyz/const-utils": "^1.0.1",
-    "@xlabs-xyz/binary-layout": "^1.0.1",
-    "@xlabs-xyz/amount": "^1.0.1",
-    "@xlabs-xyz/utils": "^1.0.1"
+    "@xlabs-xyz/const-utils": "^1.0.2",
+    "@xlabs-xyz/binary-layout": "^1.0.2",
+    "@xlabs-xyz/amount": "^1.0.2",
+    "@xlabs-xyz/utils": "^1.0.2"
   },
   "devDependencies": {
     "@xlabs-xyz/const-utils": "workspace:*",

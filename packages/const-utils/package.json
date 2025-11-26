@@ -1,11 +1,19 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@xlabs-xyz/const-utils",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "xLabs",
   "license": "Apache-2.0",
   "description": "Type-safe utilities for readonly and const data structures, including bidirectional mappings, array transformations, and object manipulation",
-  "keywords": ["mapping", "type-safe", "readonly", "const", "tuple", "immutable", "bidirectional"],
+  "keywords": [
+    "mapping",
+    "type-safe",
+    "readonly",
+    "const",
+    "tuple",
+    "immutable",
+    "bidirectional"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/xlabs/ts-sdk"

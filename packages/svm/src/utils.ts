@@ -34,7 +34,8 @@ export type DiscriminatorType = keyof typeof discriminatorTypeConverter;
 
 export const discriminatorLength = 8;
 export const discriminatorOf = (type: DiscriminatorType, name: string) =>
-  sha256(`${discriminatorTypeConverter[type]}:${name}`).subarray(0, discriminatorLength);
+  sha256(bytes.encode(`${discriminatorTypeConverter[type]}:${name}`))
+    .subarray(0, discriminatorLength);
 
 //see here: https://github.com/solana-foundation/anchor/blob/master/lang/src/event.rs
 //Why they chose to use little endian here, when all other discriminators are big endian is
@@ -81,7 +82,7 @@ export const calcPda =
     toAddress(calcRawPda(seeds, bump, programId));
 
 const isOffCurve = (rawAddress: RoUint8Array) =>
-  throws(() => ed25519.Point.fromHex(rawAddress as Uint8Array));
+  throws(() => ed25519.Point.fromBytes(rawAddress as Uint8Array));
 
 export function findPdaAndBump<S extends string>(
   seeds: Seeds<S>,
