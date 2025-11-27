@@ -159,6 +159,9 @@ export const mintAccountLayout =
       >> =>
     littleEndian(kind ? typedMintAccountLayout(kind) : untypedMintAccountLayout) as any;
 
+export type MintAccount<K extends KindWithAtomic | undefined = undefined> =
+  DeriveType<ReturnType<typeof mintAccountLayout<K>>>;
+
 //TODO implement support/layouts for token2022 mint extensions
 
 const initStates = ["Uninitialized", "Initialized"] as const;
@@ -188,6 +191,9 @@ export const tokenAccountLayout =
     >> =>
     littleEndian(kind ? typedTokenAccountLayout(kind) : untypedTokenAccountLayout) as any;
 
+export type TokenAccount<K extends KindWithAtomic | undefined = undefined> =
+  DeriveType<ReturnType<typeof tokenAccountLayout<K>>>;
+
 //see https://github.com/solana-program/system/blob/main/clients/js/src/generated/accounts/nonce.ts
 const nonceVersion = ["Legacy", "Current"] as const;
 export const durableNonceAccountLayout = [
@@ -197,6 +203,8 @@ export const durableNonceAccountLayout = [
   { name: "blockhash",       ...hashItem                   },
   { name: "solPerSignature", ...lamportsItem               },
 ] as const satisfies ProperLayout;
+
+export type DurableNonceAccount = DeriveType<typeof durableNonceAccountLayout>;
 
 //actual impl: https://github.com/anza-xyz/solana-sdk/blob/master/offchain-message/src/lib.rs#L162
 //DO NOT TRUST THE OUTDATED PROPOSAL:

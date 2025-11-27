@@ -18,13 +18,15 @@ import {
   getBase64EncodedWireTransaction,
   compileTransaction,
 } from "@solana/kit";
-import type { MaybeArray, MapArrayness } from "@xlabs-xyz/const-utils";
+import type { RoArray, MaybeArray, MapArrayness } from "@xlabs-xyz/const-utils";
 import { isArray, mapTo } from "@xlabs-xyz/const-utils";
-import { type Layout, type DeriveType, deserialize } from "@xlabs-xyz/binary-layout";
+import type { Layout, DeriveType } from "@xlabs-xyz/binary-layout";
+import { deserialize } from "@xlabs-xyz/binary-layout";
 import { type KindWithAtomic } from "@xlabs-xyz/amount";
 import type { DistributiveAmount, Byte } from "@xlabs-xyz/common";
 import { byte } from "@xlabs-xyz/common";
-import { tokenAccountLayout } from "./layouting.js";
+import type { MintAccount,TokenAccount } from "./layouting.js";
+import { mintAccountLayout, tokenAccountLayout } from "./layouting.js";
 
 const base64 = getBase64Codec();
 
@@ -69,7 +71,7 @@ export const sendTransaction =
   (client: SvmClient, wireTx: Base64EncodedWireTransaction): Promise<string> =>
     client.sendTransaction(wireTx, encb64).send();
 
-export const getAccountInfo = async <const A extends MaybeArray<Address>>(
+export const getAccountInfo = <const A extends MaybeArray<Address>>(
   client: SvmClient,
   addressEs: A,
 ): Promise<MapArrayness<A, AccountInfo | undefined>> =>
@@ -94,6 +96,24 @@ export const getDeserializedAccount = <
 
 export type AmountType<K extends KindWithAtomic | undefined> =
   K extends KindWithAtomic ? DistributiveAmount<K> : bigint;
+
+export const getMint = <const K extends KindWithAtomic | undefined = undefined>(
+  client: SvmClient,
+  mintAddress: Address,
+  kind?: K,
+): Promise<MintAccount<K> | undefined> =>
+  getDeserializedAccount(client, mintAddress, mintAccountLayout(kind));
+
+export const getTokenAccount = <
+  const A extends MaybeArray<Address>,
+  const K extends KindWithAtomic | undefined = undefined,
+>(
+  client: SvmClient,
+  tokenAccs: A,
+  kind?: K,
+): Promise<MapArrayness<A, TokenAccount<K> | undefined>> =>
+  getDeserializedAccount(client, tokenAccs, tokenAccountLayout(kind));
+
 export const getTokenBalance = <
   const A extends MaybeArray<Address>,
   const K extends KindWithAtomic | undefined = undefined,
@@ -102,9 +122,10 @@ export const getTokenBalance = <
   tokenAccs: A,
   kind?: K,
 ): Promise<MapArrayness<A, AmountType<K> | undefined>> =>
-  getDeserializedAccount(client, tokenAccs, tokenAccountLayout(kind)).then(res => mapTo(res)(
-    maybeToken => (maybeToken as { amount: AmountType<K> } | undefined)?.amount,
-  )) as any;
+  getDeserializedAccount(client, tokenAccs, tokenAccountLayout(kind))
+    .then(res => mapTo(res)(maybeToken =>
+      (maybeToken as { amount: AmountType<K> } | undefined)?.amount,
+    )) as any;
 
 export const getLatestBlockhash = (client: SvmClient): Promise<BlockHashInfo> =>
   client.getLatestBlockhash().send().then(res => res.value);
@@ -112,19 +133,17 @@ export const getLatestBlockhash = (client: SvmClient): Promise<BlockHashInfo> =>
 export const addLifetimeAndSendTx = (
   client: SvmClient,
   tx: TxMsgWithFeePayer,
-  signers: readonly KeyPairSigner[],
+  signers: RoArray<KeyPairSigner>,
 ): Promise<Signature> =>
   getLatestBlockhash(client)
     .then(blockhash => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx))
     .then(txWithLifetime => sendTx(client, txWithLifetime, signers));
 
-export async function sendTx(
+export const sendTx = (
   client: SvmClient,
   tx: TxWithLifetime,
-  signers: readonly KeyPairSigner[]
-): Promise<Signature> {
-  const compiledTx = compileTransaction(tx);
-  const signedTx = await signTransaction(signers.map(kp => kp.keyPair), compiledTx);
-  const wireTx: Base64EncodedWireTransaction = getBase64EncodedWireTransaction(signedTx);
-  return client.sendTransaction(wireTx, encb64).send();
-}
+  signers: RoArray<KeyPairSigner>
+): Promise<Signature> =>
+  signTransaction(signers.map(kp => kp.keyPair), compileTransaction(tx)).then(
+    signedTx => client.sendTransaction(getBase64EncodedWireTransaction(signedTx), encb64).send()
+  );

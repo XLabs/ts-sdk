@@ -103,11 +103,21 @@ export const findPda = <S extends string>(seeds: Seeds<S>, programId: Address): 
   findPdaAndBump(seeds, programId)[0];
 
 export const findAta = (
-  owner: Address,
-  mint: Address,
-  tokenProgram: Address = tokenProgramId,
+  addresses: {
+    owner:         Address;
+    mint:          Address;
+    tokenProgram?: Address | undefined;
+  }
 ): Address =>
-  findPda(["", owner, tokenProgram, mint], associatedTokenProgramId);
+  findPda(
+    [
+      "",
+      addresses.owner,
+      addresses.tokenProgram ?? tokenProgramId,
+      addresses.mint
+    ],
+    associatedTokenProgramId
+  );
 
 export const minimumBalanceForRentExemption = (size: number): Lamports =>
   BigInt(emptyAccountSize + size) * lamportsPerByte as Lamports;
@@ -136,21 +146,26 @@ export const feePayerTxFromIxs = (
   );
 
 export function composeCreateAtaIx(
-  payer: Address,
-  owner: Address,
-  mint: Address,
+  addresses: {
+    payer:         Address;
+    owner:         Address;
+    mint:          Address;
+    tokenProgram?: Address | undefined;
+  },
   idempotent: boolean = true,
-  tokenProgram: Address = tokenProgramId,
 ): Ix {
-  const ata = findAta(owner, mint, tokenProgram);
+  const ata = findAta(addresses);
+  const tokenProgram = addresses.tokenProgram ?? tokenProgramId;
+
   const accounts = [
-    [payer,           AccountRole.WRITABLE_SIGNER],
-    [ata,             AccountRole.WRITABLE       ],
-    [owner,           AccountRole.READONLY       ],
-    [mint,            AccountRole.READONLY       ],
-    [systemProgramId, AccountRole.READONLY       ],
-    [tokenProgram,    AccountRole.READONLY       ],
+    [addresses.payer,  AccountRole.WRITABLE_SIGNER],
+    [ata,              AccountRole.WRITABLE       ],
+    [addresses.owner,  AccountRole.READONLY       ],
+    [addresses.mint,   AccountRole.READONLY       ],
+    [systemProgramId,  AccountRole.READONLY       ],
+    [tokenProgram,     AccountRole.READONLY       ],
   ] as const;
+
   return composeIx(
     accounts,
     { binary: "uint", size: 1 }, //see https://docs.rs/spl-associated-token-account-interface/latest/spl_associated_token_account_interface/instruction/enum.AssociatedTokenAccountInstruction.html
