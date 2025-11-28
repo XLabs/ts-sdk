@@ -1,19 +1,19 @@
 import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import type { Address } from "@solana/kit";
-import { stringifyJsonWithBigInts, parseJsonWithBigInts } from "@solana/rpc-spec-types";
+import { stringifyWithBigints, parseWithBigints } from "@xlabs-xyz/utils";
 import type { MaybeSvmAccInfo } from "./details.js";
 import { base64 } from "./details.js";
 import type { Snapshot } from "./forkSvm.js";
 
 const parseJsonAccInfo = (json: string): MaybeSvmAccInfo => {
-  const base64AccOrNull: any = parseJsonWithBigInts(json);
+  const base64AccOrNull: any = parseWithBigints(json);
   if (base64AccOrNull?.data)
     base64AccOrNull.data = base64.encode(base64AccOrNull.data) as Uint8Array;
   return base64AccOrNull as MaybeSvmAccInfo;
 };
 
 const stringifyJsonAccInfo = (acc: MaybeSvmAccInfo): string =>
-  stringifyJsonWithBigInts(acc ? { ...acc, data: base64.decode(acc.data) } : null);
+  stringifyWithBigints(acc ? { ...acc, data: base64.decode(acc.data) } : null);
 
 const toPaths = (filepath: string) => {
   const basepath = filepath + (filepath.endsWith("/") ? "" : "/");
@@ -29,14 +29,19 @@ export async function writeToDisc(filepath: string, snapshot: Snapshot): Promise
   const { accountsPath, metaFilename } = toPaths(filepath);
 
   const meta = {
-    settings:  snapshot.settings,
-    timestamp: snapshot.timestamp.toISOString(),
-    slot:      snapshot.slot,
+    settings: snapshot.settings,
+    clock: {
+      timestamp:           snapshot.clock.timestamp.toISOString(),
+      slot:                snapshot.clock.slot,
+      epoch:               snapshot.clock.epoch,
+      epochStartTimestamp: snapshot.clock.epochStartTimestamp,
+      leaderScheduleEpoch: snapshot.clock.leaderScheduleEpoch,
+    },
   } as const;
 
   await Promise.all([
     mkdir(accountsPath, { recursive: true }),
-    writeFile(metaFilename, stringifyJsonWithBigInts(meta), utf8),
+    writeFile(metaFilename, stringifyWithBigints(meta), utf8),
   ]);
 
   await Promise.all(Object.entries(snapshot.accounts).map(([addr, acc]) =>
@@ -48,7 +53,7 @@ export async function readFromDisc(filepath: string): Promise<Snapshot> {
   const { accountsPath, metaFilename } = toPaths(filepath);
 
   const [parsedMeta, accountFilenames] = await Promise.all([
-    readFile(metaFilename, utf8).then(parseJsonWithBigInts) as Promise<any>,
+    readFile(metaFilename, utf8).then(parseWithBigints) as Promise<any>,
     readdir(accountsPath)
       .then(filenames => filenames.filter(name => name.endsWith(".json")))
       .catch(e => {
@@ -65,9 +70,14 @@ export async function readFromDisc(filepath: string): Promise<Snapshot> {
   ));
 
   return {
-    settings:  parsedMeta.settings,
-    accounts:  Object.fromEntries(accountEntries),
-    timestamp: new Date(parsedMeta.timestamp),
-    slot:      parsedMeta.slot as bigint,
+    settings: parsedMeta.settings,
+    accounts: Object.fromEntries(accountEntries),
+    clock: {
+      timestamp:           new Date(parsedMeta.clock.timestamp),
+      slot:                parsedMeta.clock.slot                as bigint,
+      epoch:               parsedMeta.clock.epoch               as bigint,
+      epochStartTimestamp: parsedMeta.clock.epochStartTimestamp as bigint,
+      leaderScheduleEpoch: parsedMeta.clock.leaderScheduleEpoch as bigint,
+    },
   };
 }

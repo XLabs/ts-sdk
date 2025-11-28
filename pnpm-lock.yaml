@@ -12,9 +12,6 @@ catalogs:
     '@solana/rpc-spec':
       specifier: ^5.0.0
       version: 5.0.0
-    '@solana/rpc-spec-types':
-      specifier: ^5.0.0
-      version: 5.0.0
 
 importers:
 
@@ -56,14 +53,15 @@ importers:
   packages/const-utils: {}
 
   packages/fork-svm:
+    dependencies:
+      '@solana/rpc-spec-types':
+        specifier: '*'
+        version: 5.0.0(typescript@5.9.3)
     devDependencies:
       '@solana/kit':
         specifier: 'catalog:'
         version: 5.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(ws@8.18.3)
       '@solana/rpc-spec':
-        specifier: 'catalog:'
-        version: 5.0.0(typescript@5.9.3)
-      '@solana/rpc-spec-types':
         specifier: 'catalog:'
         version: 5.0.0(typescript@5.9.3)
       '@xlabs-xyz/const-utils':
@@ -72,6 +70,9 @@ importers:
       '@xlabs-xyz/svm':
         specifier: workspace:*
         version: link:../svm
+      '@xlabs-xyz/utils':
+        specifier: workspace:*
+        version: link:../utils
 
   packages/svm:
     devDependencies:

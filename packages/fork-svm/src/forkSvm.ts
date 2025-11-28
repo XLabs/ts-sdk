@@ -1,7 +1,8 @@
 import type { Address, Transaction, RpcTransport } from "@solana/kit";
 import { createSolanaRpc, createSolanaRpcFromTransport } from "@solana/kit";
 import { isJsonRpcPayload } from "@solana/rpc-spec";
-import { range, zip } from "@xlabs-xyz/const-utils";
+import type { RoArray, MaybeArray } from "@xlabs-xyz/const-utils";
+import { range, zip, mapTo, isArray } from "@xlabs-xyz/const-utils";
 import { bpfLoaderUpgradeableProgramId, addressSize, hashSize } from "@xlabs-xyz/svm";
 import { LiteSVM, TransactionMetadata } from "./liteSvm.js";
 import type { MaybeSvmAccInfo, MaybeKitAccInfo } from "./details.js";
@@ -29,11 +30,18 @@ export type Settings = {
   withBuiltins:        boolean;
 };
 
+export type Clock = Readonly<{
+  timestamp:           Date;
+  slot:                bigint;
+  epoch:               bigint;
+  epochStartTimestamp: bigint;
+  leaderScheduleEpoch: bigint;
+}>;
+
 export type Snapshot = Readonly<{
-  settings:  Readonly<Settings>;
-  accounts:  Readonly<Record<Address, MaybeSvmAccInfo>>;
-  timestamp: Date;
-  slot:      bigint;
+  settings: Readonly<Settings>;
+  accounts: Readonly<Record<Address, MaybeSvmAccInfo>>;
+  clock:    Clock;
 }>;
 
 export class ForkSvm {
@@ -84,9 +92,14 @@ export class ForkSvm {
     const accounts = Object.fromEntries(
       [...this.addresses.known.keys()].map(addr => [addr, this.liteSvm.getAccount(addr)])
     );
-    const timestamp = this.latestTimestamp();
-    const slot = this.latestSlot();
-    return { settings, accounts, timestamp, slot };
+    const timestamp           = this.latestTimestamp();
+    const liteClock           = this.liteSvm.getClock();
+    const slot                = liteClock.slot;
+    const epoch               = liteClock.epoch;
+    const epochStartTimestamp = liteClock.epochStartTimestamp;
+    const leaderScheduleEpoch = liteClock.leaderScheduleEpoch;
+    const clock = { timestamp, slot, epoch, epochStartTimestamp, leaderScheduleEpoch };
+    return { settings, accounts, clock };
   }
 
   load(snapshot: Snapshot) {
@@ -110,6 +123,15 @@ export class ForkSvm {
         executables.push([addr as Address, acc]);
       else
         this.setAccount(addr as Address, acc);
+    
+    const { clock } = snapshot;
+    const liteClock = this.liteSvm.getClock();
+    liteClock.unixTimestamp       = BigInt(clock.timestamp.getTime() / 1000);
+    liteClock.slot                = clock.slot;
+    liteClock.epoch               = clock.epoch;
+    liteClock.epochStartTimestamp = clock.epochStartTimestamp;
+    liteClock.leaderScheduleEpoch = clock.leaderScheduleEpoch;
+    this.liteSvm.setClock(liteClock);
     
     for (const [addr, acc] of executables)
       this.setAccount(addr, acc);
@@ -177,14 +199,9 @@ export class ForkSvm {
     throw result;
   }
 
-  async getAccount(address: Address): Promise<MaybeSvmAccInfo> {
-    await this.fetchUnfetched([address]);
-    return this.liteSvm.getAccount(address);
-  }
-
-  async getMultipleAccounts(addresses: readonly Address[]): Promise<MaybeSvmAccInfo[]> {
-    await this.fetchUnfetched(addresses);
-    return addresses.map(addr => this.liteSvm.getAccount(addr));
+  async getAccount<const A extends MaybeArray<Address>>(addressEs: A) {
+    await this.fetchUnfetched(isArray(addressEs) ? addressEs : [addressEs]);
+    return mapTo(addressEs)(addr => this.liteSvm.getAccount(addr))
   }
 
   async airdrop(address: Address, lamports: bigint): Promise<void> {
@@ -228,9 +245,8 @@ export class ForkSvm {
         async (address: Address): Promise<SolanaRpcResponse<MaybeKitAccInfo>> =>
           createRpcResponse(liteSvmAccountToKitAccount(await this.getAccount(address))),
       getMultipleAccounts:
-        async (addresses: Address[]): Promise<SolanaRpcResponse<MaybeKitAccInfo[]>> =>
-          createRpcResponse((await this.getMultipleAccounts(addresses))
-            .map(liteSvmAccountToKitAccount)),
+        async (addresses: RoArray<Address>): Promise<SolanaRpcResponse<MaybeKitAccInfo[]>> =>
+          createRpcResponse((await this.getAccount(addresses)).map(liteSvmAccountToKitAccount)),
     } as const;
 
     return function <TResponse>(transportConfig: Parameters<RpcTransport>[0]): Promise<TResponse> {
@@ -337,7 +353,7 @@ export class ForkSvm {
     );
   }
 
-  private async fetchUnfetched(addresses: readonly Address[]): Promise<void> {
+  private async fetchUnfetched(addresses: RoArray<Address>): Promise<void> {
     const unfetchedAddresses = addresses.filter(addr => this.isUnfetched(addr));
     if (unfetchedAddresses.length === 0)
       return;

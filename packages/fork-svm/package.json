@@ -41,6 +41,7 @@
   },
   "peerDependencies": {
     "@xlabs-xyz/const-utils": "^2.0.0",
+    "@xlabs-xyz/utils": "^2.0.0",
     "@xlabs-xyz/svm": "^2.0.0",
     "@solana/kit": "*",
     "@solana/rpc-spec": "*",
@@ -49,8 +50,8 @@
   "devDependencies": {
     "@xlabs-xyz/const-utils": "workspace:*",
     "@xlabs-xyz/svm": "workspace:*",
+    "@xlabs-xyz/utils": "workspace:*",
     "@solana/kit": "catalog:",
-    "@solana/rpc-spec": "catalog:",
-    "@solana/rpc-spec-types": "catalog:"
+    "@solana/rpc-spec": "catalog:"
   }
 }
