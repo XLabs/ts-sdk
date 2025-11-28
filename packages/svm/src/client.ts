@@ -91,7 +91,7 @@ export const getDeserializedAccount = <
   layout: L,
 ): Promise<MapArrayness<A, DeriveType<L> | undefined>> =>
   getAccountInfo(client, addressEs).then(res => mapTo(res)(accInfo =>
-    accInfo ? deserialize(layout, accInfo.data) : undefined
+    accInfo !== undefined ? deserialize(layout, accInfo.data) : undefined
   )) as any;
 
 export type AmountType<K extends KindWithAtomic | undefined> =
