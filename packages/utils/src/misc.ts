@@ -12,9 +12,9 @@ export interface BrandedSubArray<T extends Uint8Array> extends Uint8Array {
   ): T extends IsBranded<infer _> ? T : Uint8Array;
 }
 
-export const definedOrThrow = <const T>(value: T | undefined, errorMessage: string): T => {
+export const definedOrThrow = <const T>(value: T | undefined, errorMessage?: string): T => {
   if (value === undefined)
-    throw new Error(errorMessage);
+    throw new Error(errorMessage ?? "Value is undefined");
   return value;
 };
 
