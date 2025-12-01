@@ -25,13 +25,13 @@ export function composeEd25519VerifyIx(params: MaybeArray<Ed25519VerifyParams>):
   const verifications = Array.isArray(params) ? params : [params];
   if (verifications.length === 0)
     throw new Error("At least one signature verification required");
-  
+
   const headerSize = offsetsArrayLayout.lengthSize + verifications.length * offsetsSize;
-  
+
   let currentOffset = headerSize;
   const appendData: RoUint8Array[] = [];
   const resolveLocation = (
-    data: Address | RoUint8Array | Reference, 
+    data: Address | RoUint8Array | Reference,
     fixedSize?: number
   ): { index: number, offset: number, size: number } => {
     if (typeof data === "string")
@@ -53,10 +53,10 @@ export function composeEd25519VerifyIx(params: MaybeArray<Ed25519VerifyParams>):
 
       const index = ownIxIndex;
       const offset = currentOffset;
-      
+
       appendData.push(data);
       currentOffset += size;
-      
+
       return { index, offset, size };
     }
     const ref = data as Reference;
@@ -68,7 +68,7 @@ export function composeEd25519VerifyIx(params: MaybeArray<Ed25519VerifyParams>):
       size,
     };
   };
-  
+
   //1. resolve locations and build up appendData with deduplication
   const offsets = verifications.map(({ publicKey, message, signature }) => {
     const  pkLoc = resolveLocation(publicKey, addressSize);

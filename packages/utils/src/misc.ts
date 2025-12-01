@@ -22,7 +22,8 @@ export function throws(fn: () => unknown): boolean {
   try {
     fn();
     return false;
-  } catch {
+  }
+  catch {
     return true;
   }
 }

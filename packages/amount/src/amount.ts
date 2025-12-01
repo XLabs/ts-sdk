@@ -140,13 +140,13 @@ export class Amount<K extends Kind> {
   }
 
   static getUnit<K extends Kind>(kind: K, unitSymbol: SymbolsOf<K>): Unit {
-    const symbol = 
+    const symbol =
       unitSymbol === "human"
       ? kind.human
       : unitSymbol === "atomic"
       ? kind.atomic
       : unitSymbol;
-    
+
     if (symbol === undefined)
       throw new Error(`Unit ${unitSymbol} not found in kind ${kind.name}`);
 
