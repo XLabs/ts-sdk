@@ -22,6 +22,7 @@ import { deserialize } from "@xlabs-xyz/binary-layout";
 import {
   svmAddressItem,
   addressLookupTableLayout,
+  systemProgramId,
   bpfLoaderUpgradeableProgramId,
   addressSize,
   signatureSize,
@@ -249,7 +250,7 @@ export class ForkSvm {
 
   setAccount(address: Address, acc: MaybeSvmAccInfo): void {
     this.addresses.known.add(address);
-    if (acc) {
+    if (acc && acc.owner !== systemProgramId) {
       if (acc.space < acc.data.length)
         acc.space = BigInt(acc.data.length);
 
