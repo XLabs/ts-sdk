@@ -14,7 +14,8 @@ import {
 } from "@solana/kit";
 import type { RoArray, RoPair, MaybeArray } from "@xlabs-xyz/const-utils";
 import { type RoUint8Array, isArray } from "@xlabs-xyz/const-utils";
-import { type Layout, type DeriveType, serialize } from "@xlabs-xyz/binary-layout";
+import type { Layout, DeriveType } from "@xlabs-xyz/binary-layout";
+import { serialize } from "@xlabs-xyz/binary-layout";
 import { bytes, base58, sha256, ed25519, throws } from "@xlabs-xyz/utils";
 import {
   associatedTokenProgramId,
@@ -23,6 +24,82 @@ import {
   emptyAccountSize,
   lamportsPerByte,
 } from "./constants.js";
+
+//since it's a very common SVM pattern to have a utf8 string as the first seed, we encode this
+//  convention. To protect against an Address being accidentally encoded as utf8 (because
+//  the @solana/kit Address type is just a branded string type), we enforce on the type level
+//  that one can't pass an Address (or a union type that inclues an Address) as the first seed.
+export type Seed<S = string> = RoUint8Array | S;
+type IsAddress<S extends Seed> = S extends Address ? true : false;
+type RefuseAddressImpl<S extends Seed> = [true] extends [Extract<IsAddress<S>, true>] ? never : S;
+export type RefuseAddress<S extends Seed> = [S] extends [RefuseAddressImpl<S>] ? S : never;
+
+export function findPdaAndBump<S extends Seed>(
+  firstSeed: RefuseAddress<S>,
+  ...args:   [...Seed<Address>[], programId: Address]
+): [Address, number] {
+  let bump = 255;
+  const programId = args.pop() as Address;
+  const seedsBytes = bytifySeeds(firstSeed, args as RoArray<Seed<Address>>);
+  while (true) { //P(not finding a valid PDA) << P(cosmic ray mucking up the computation)
+    const candidate = calcRawPda(seedsBytes, bump, programId);
+    if (isOffCurve(candidate))
+      return [toAddress(candidate), bump];
+
+    --bump;
+  }
+}
+
+export const findPda = <S extends Seed>(
+  firstSeed: RefuseAddress<S>,
+  ...args:   [...Seed<Address>[], programId: Address]
+): Address =>
+  findPdaAndBump(firstSeed, ...args)[0];
+
+export const findAta = (addresses: {
+  owner:         Address;
+  mint:          Address;
+  tokenProgram?: Address | undefined;
+}): Address =>
+  findPda(
+    new Uint8Array(0), //no string seed - only address seeds
+    addresses.owner,
+    addresses.tokenProgram ?? tokenProgramId,
+    addresses.mint,
+    associatedTokenProgramId
+  );
+
+export function calcPda<S extends Seed>(
+  firstSeed: RefuseAddress<S>,
+  ...args:   [...Seed<Address>[], bump: number, programId: Address]
+): Address {
+  const additionalSeeds = args.slice(0, -2) as RoArray<Seed<Address>>;
+  const [bump, programId] = args.slice(-2) as [number, Address];
+  return toAddress(calcRawPda(bytifySeeds(firstSeed, additionalSeeds), bump, programId));
+}
+
+export const isOffCurve = (rawAddress: RoUint8Array) =>
+  throws(() => ed25519.Point.fromBytes(rawAddress as Uint8Array));
+
+const bytifySeeds = (firstSeed: Seed, additionalSeeds: RoArray<Seed<Address>>) =>
+  bytes.concat(
+    typeof firstSeed === "string" ? bytes.encode(firstSeed) : firstSeed as RoUint8Array,
+    ...additionalSeeds.map(seed => typeof seed === "string" ? base58.decode(seed) : seed),
+  ) as RoUint8Array;
+
+const pdaStrConst = bytes.encode("ProgramDerivedAddress");
+const calcRawPda = (seedsBytes: RoUint8Array, bump: number, programId: Address) =>
+  sha256(bytes.concat(
+    seedsBytes,
+    new Uint8Array([bump]),
+    base58.decode(programId),
+    pdaStrConst,
+  ));
+
+const toAddress = (rawAddress: RoUint8Array): Address =>
+  base58.encode(rawAddress) as Address;
+
+// ----
 
 const discriminatorTypeConverter = {
   instruction: "global",
@@ -42,85 +119,12 @@ export const discriminatorOf = (type: DiscriminatorType, name: string) =>
 //  entirely beyond me.
 export const anchorEmitCpiDiscriminator = discriminatorOf("anchor", "event").reverse();
 
-export type FirstSeed = RoUint8Array | string;
-const firstSeedToBytes = (seed: FirstSeed) =>
-  typeof seed === "string" ? bytes.encode(seed) : seed as RoUint8Array;
-
-export type AdditionalSeed = RoUint8Array | Address;
-const additionalSeedToBytes = (seed: AdditionalSeed) =>
-  typeof seed === "string" ? base58.decode(seed) : seed;
-
-//the first seed is interpreted as a normal string, every other "string" is assumed to be an address
-type NotAddress<S extends string> = S extends Address ? never : S;
-export type Seeds<S extends string> =
-  RoUint8Array |
-  NotAddress<S> |
-  readonly [NotAddress<S>, ...AdditionalSeed[]] |
-  readonly [RoUint8Array, ...NotAddress<S>[]];
-const bytifySeeds = <S extends string>(seeds: Seeds<S>) =>
-  isArray(seeds)
-  ? bytes.concat(
-      firstSeedToBytes(seeds[0]),
-      ...(seeds.slice(1) as AdditionalSeed[]).map(additionalSeedToBytes),
-    ) as RoUint8Array
-  : firstSeedToBytes(seeds);
-
-const pdaStrConst = bytes.encode("ProgramDerivedAddress");
-const calcRawPda = <S extends string>(seeds: Seeds<S>, bump: number, programId: Address) =>
-  sha256(bytes.concat(
-    bytifySeeds(seeds),
-    new Uint8Array([bump]),
-    base58.decode(programId),
-    pdaStrConst,
-  ));
-
-const toAddress = (rawAddress: RoUint8Array): Address =>
-  base58.encode(rawAddress) as Address;
-
-export const calcPda =
-  <S extends string>(seeds: Seeds<S>, bump: number, programId: Address): Address =>
-    toAddress(calcRawPda(seeds, bump, programId));
-
-const isOffCurve = (rawAddress: RoUint8Array) =>
-  throws(() => ed25519.Point.fromBytes(rawAddress as Uint8Array));
-
-export function findPdaAndBump<S extends string>(
-  seeds: Seeds<S>,
-  programId: Address
-): [Address, number] {
-  let bump = 255;
-  seeds = bytifySeeds(seeds);
-  while (true) { //P(not finding a valid PDA) << P(cosmic ray mucking up the computation)
-    const candidate = calcRawPda(seeds, bump, programId);
-    if (isOffCurve(candidate))
-      return [toAddress(candidate), bump];
-
-    --bump;
-  }
-}
-
-export const findPda = <S extends string>(seeds: Seeds<S>, programId: Address): Address =>
-  findPdaAndBump(seeds, programId)[0];
-
-export const findAta = (
-  addresses: {
-    owner:         Address;
-    mint:          Address;
-    tokenProgram?: Address | undefined;
-  }
-): Address =>
-  findPda(
-    [
-      "",
-      addresses.owner,
-      addresses.tokenProgram ?? tokenProgramId,
-      addresses.mint
-    ],
-    associatedTokenProgramId
-  );
+// ----
 
 export const minimumBalanceForRentExemption = (size: number): Lamports =>
   BigInt(emptyAccountSize + size) * lamportsPerByte as Lamports;
+
+// ----
 
 export type Ix = Required<Instruction>;
 export const composeIx = <const L extends Layout>(
