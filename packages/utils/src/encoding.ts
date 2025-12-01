@@ -133,9 +133,7 @@ export const bytes = {
 
   concat: <U extends RoUint8Array>(...args: U[]): PreserveBrand<U, Uint8Array> => {
     if (args.length < 2)
-      return (args.length === 1
-        ? new Uint8Array(0)
-        : args[0]!) as any;
+      return (args.length === 1 ? args[0]! : new Uint8Array(0)) as any;
 
     const length = args.reduce((acc, curr) => acc + curr.length, 0);
     const result = new Uint8Array(length) as any;
