@@ -70,3 +70,18 @@ export const assertType =
   <T>() =>
     <const V>(val: V): V extends T ? V : never =>
       val as any;
+
+export type DeepReadonly<T> =
+  IsAny<T> extends true //prevent DeepReadonly<any> from giving type instantiation too deep error
+  ? any
+  : T extends RoTuple
+  ? T extends HeadTail<T, infer Head, infer Tail>
+    ? readonly [DeepReadonly<Head>, ...DeepReadonly<Tail>]
+    : readonly []
+  : T extends object
+  ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+  : T;
+
+export const deepReadonly = <const T>(value: T): DeepReadonly<T> => value as DeepReadonly<T>;
+
+export type Mutable<T> = { -readonly [P in keyof T]: T[P] };

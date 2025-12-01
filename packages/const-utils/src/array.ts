@@ -6,7 +6,6 @@ import type {
   RoTuple,
   RoArray,
   HeadTail,
-  IsAny,
 } from "./typing.js";
 
 export function isArray<T, U>(val: T | RoArray<U>): val is RoArray<U>;
@@ -86,19 +85,6 @@ export const mapTo = <const P>(p: P): MapTo<P> =>
 
 //capitalization to highlight that this is intended to be a literal or a union of literals
 export type IndexEs = number;
-
-export type DeepReadonly<T> =
-  IsAny<T> extends true //prevent DeepReadonly<any> from giving type instantiation too deep error
-  ? any
-  : T extends RoTuple
-  ? T extends HeadTail<T, infer Head, infer Tail>
-    ? readonly [DeepReadonly<Head>, ...DeepReadonly<Tail>]
-    : readonly []
-  : T extends object
-  ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
-  : T;
-
-export const deepReadonly = <const T>(value: T): DeepReadonly<T> => value as DeepReadonly<T>;
 
 export type TupleEntries<T extends RoTuple> =
   [...{ [K in keyof T]: K extends `${infer N extends number}` ? [N, T[K]] : never }];
