@@ -1,26 +1,53 @@
-import type { Address, Transaction, RpcTransport } from "@solana/kit";
-import { createSolanaRpc, createSolanaRpcFromTransport } from "@solana/kit";
-import { isJsonRpcPayload } from "@solana/rpc-spec";
-import type { RoArray, MaybeArray } from "@xlabs-xyz/const-utils";
-import { range, zip, mapTo, isArray } from "@xlabs-xyz/const-utils";
-import { bpfLoaderUpgradeableProgramId, addressSize, hashSize } from "@xlabs-xyz/svm";
-import { LiteSVM, TransactionMetadata } from "./liteSvm.js";
-import type { MaybeSvmAccInfo, MaybeKitAccInfo } from "./details.js";
+import type {
+  Address,
+  Transaction,
+  RpcApi,
+  RpcTransport,
+  RpcPlan,
+  Signature,
+  Base64EncodedWireTransaction,
+} from "@solana/kit";
 import {
-  decodeAddr,
-  decodeCompactU16,
+  DEFAULT_RPC_CONFIG,
+  createSolanaRpc,
+  createRpc,
+  createSolanaRpcApi,
+  getTransactionDecoder,
+} from "@solana/kit";
+import { isJsonRpcPayload } from "@solana/rpc-spec";
+import type { RoArray, MaybeArray, Function } from "@xlabs-xyz/const-utils";
+import { zip, mapTo, isArray, omit } from "@xlabs-xyz/const-utils";
+import { base58, base64, definedOrThrow } from "@xlabs-xyz/utils";
+import { deserialize } from "@xlabs-xyz/binary-layout";
+import {
+  svmAddressItem,
+  addressLookupTableLayout,
+  bpfLoaderUpgradeableProgramId,
+  addressSize,
+  signatureSize,
+  svmMaxTxSize,
+  minimumBalanceForRentExemption,
+} from "@xlabs-xyz/svm";
+import {
+  LiteSVM,
+  TransactionMetadata,
+  FailedTransactionMetadata,
+} from "./liteSvm.js";
+import type { MaybeSvmAccInfo } from "./details.js";
+import {
   builtInSet,
   sysvarSet,
   defProgSet,
   kitAccountToLiteSvmAccount,
   liteSvmAccountToKitAccount,
   emptyAccountInfo,
+  decodeCompiledTransactionMessage,
 } from "./details.js";
 
 export type InnerInstruction = ReturnType<TransactionMetadata["innerInstructions"]>[number][number];
 export type CompiledInstruction = ReturnType<InnerInstruction["instruction"]>;
 export type TransactionReturnData = ReturnType<TransactionMetadata["returnData"]>;
-export { type TransactionMetadata, type FailedTransactionMetadata } from "./liteSvm.js";
+export { TransactionMetadata, FailedTransactionMetadata } from "./liteSvm.js";
 
 type Rpc = ReturnType<typeof createSolanaRpc>;
 export type Settings = {
@@ -50,18 +77,22 @@ export class ForkSvm {
   private rpc: Rpc | undefined;
   private liteSvm: LiteSVM;
   private addresses: { known: Set<Address>, special: Set<Address> };
-  
+
   constructor(
-    url?:                string,
-    withDefaultPrograms: boolean = true,
-    withSysvars:         boolean = true,
-    withBuiltins:        boolean = true,
+    settings?: Partial<{
+      url:                 string | undefined,
+      withDefaultPrograms: boolean;
+      withSysvars:         boolean;
+      withBuiltins:        boolean;
+    }>,
   ) {
-    this.settings  = { url, withDefaultPrograms, withSysvars, withBuiltins };
-    this.rpc       = url ? createSolanaRpc(url) : undefined;
+    const { url, withDefaultPrograms = true, withSysvars = true, withBuiltins = true } =
+      settings ?? {};
+    this.settings  = { url: url ?? undefined, withDefaultPrograms, withSysvars, withBuiltins };
+    this.rpc       = url !== undefined ? createSolanaRpc(url) : undefined;
     this.liteSvm   = new LiteSVM();
     this.addresses = { known: new Set(), special: new Set() };
-    
+
     if (withBuiltins) {
       this.liteSvm.withBuiltins();
       this.addresses.special = this.addresses.special.union(builtInSet);
@@ -77,12 +108,7 @@ export class ForkSvm {
   }
 
   static load(snapshot: Snapshot) {
-    const forkSvm = new ForkSvm(
-      snapshot.settings.url,
-      snapshot.settings.withDefaultPrograms,
-      snapshot.settings.withSysvars,
-      snapshot.settings.withBuiltins
-    );
+    const forkSvm = new ForkSvm(snapshot.settings);
     forkSvm.load(snapshot);
     return forkSvm;
   }
@@ -115,7 +141,7 @@ export class ForkSvm {
     const clear = this.addresses.known.intersection(new Set(Object.keys(snapshot.accounts)));
     for (const addr of clear)
       this.liteSvm.setAccount(addr, emptyAccountInfo);
-      
+
     this.addresses.known = new Set();
     const executables = [] as [Address, MaybeSvmAccInfo][];
     for (const [addr, acc] of Object.entries(snapshot.accounts))
@@ -123,7 +149,7 @@ export class ForkSvm {
         executables.push([addr as Address, acc]);
       else
         this.setAccount(addr as Address, acc);
-    
+
     const { clock } = snapshot;
     const liteClock = this.liteSvm.getClock();
     liteClock.unixTimestamp       = BigInt(clock.timestamp.getTime() / 1000);
@@ -132,7 +158,7 @@ export class ForkSvm {
     liteClock.epochStartTimestamp = clock.epochStartTimestamp;
     liteClock.leaderScheduleEpoch = clock.leaderScheduleEpoch;
     this.liteSvm.setClock(liteClock);
-    
+
     for (const [addr, acc] of executables)
       this.setAccount(addr, acc);
   }
@@ -163,11 +189,11 @@ export class ForkSvm {
         this.rpc.getSlot().send(),
         this.rpc.getEpochInfo().send(),
       ]);
-  
+
       const clock = this.liteSvm.getClock();
-      clock.slot = slot;
-      clock.unixTimestamp = await this.rpc.getBlockTime(slot).send();
-      clock.epoch = epochInfo.epoch;
+      clock.slot                = slot;
+      clock.unixTimestamp       = await this.rpc.getBlockTime(slot).send();
+      clock.epoch               = epochInfo.epoch;
       clock.epochStartTimestamp = clock.unixTimestamp;
       clock.leaderScheduleEpoch = epochInfo.epoch + 1n;
       this.liteSvm.setClock(clock);
@@ -182,6 +208,7 @@ export class ForkSvm {
   }
 
   async sendTransaction(tx: Transaction): Promise<TransactionMetadata> {
+    this.checkTxSize(tx);
     await this.fetchUnfetchedOfTx(tx);
     const result = this.liteSvm.sendTransaction(tx);
     if (result instanceof TransactionMetadata)
@@ -191,12 +218,13 @@ export class ForkSvm {
   }
 
   async simulateTransaction(tx: Transaction): Promise<TransactionMetadata> {
+    this.checkTxSize(tx);
     await this.fetchUnfetchedOfTx(tx);
     const result = this.liteSvm.simulateTransaction(tx);
-    if (result instanceof TransactionMetadata)
-      return result;
+    if (result instanceof FailedTransactionMetadata)
+      throw result;
 
-    throw result;
+    return result.meta();
   }
 
   async getAccount<const A extends MaybeArray<Address>>(addressEs: A) {
@@ -221,33 +249,230 @@ export class ForkSvm {
 
   setAccount(address: Address, acc: MaybeSvmAccInfo): void {
     this.addresses.known.add(address);
+    if (acc) {
+      if (acc.space < acc.data.length)
+        acc.space = BigInt(acc.data.length);
+
+      if (acc.lamports < minimumBalanceForRentExemption(Number(acc.space)))
+        acc.lamports = minimumBalanceForRentExemption(Number(acc.space));
+    }
     this.liteSvm.setAccount(address, acc ?? emptyAccountInfo);
   }
 
   createForkRpc() {
-    return createSolanaRpcFromTransport(this.createForkTransport());
+    const baseTransport = this.createForkTransport();
+    const baseApi = createSolanaRpcApi(DEFAULT_RPC_CONFIG);
+    const recursivelyWrapUnavailable = (value: any): any =>
+      value === null || value === undefined
+      ? value
+      : typeof value !== 'object'
+      ? value
+      : value.__unavailable === true && typeof value.__feature === 'string'
+      ? new Proxy({}, {
+          get: () => { throw new Error(`${value.__feature} is not provided by ForkSvm`); }
+        })
+      : Array.isArray(value)
+      ? value.map(v => recursivelyWrapUnavailable(v))
+      : Object.entries(value).reduce((wrapped, [key, val]) => {
+          wrapped[key] = recursivelyWrapUnavailable(val);
+          return wrapped;
+        }, {} as any);
+
+    //we wrap the api to transform our unavailable fields into proxies that throw when accessed
+    const wrappedApi = new Proxy(baseApi, {
+      defineProperty() {
+        return false;
+      },
+      deleteProperty() {
+        return false;
+      },
+      get(target, prop, receiver) {
+        const originalPlanGetter = Reflect.get(target, prop, receiver);
+        if (typeof originalPlanGetter !== 'function')
+          return originalPlanGetter;
+
+        return function(...args: unknown[]) {
+          const originalPlan = originalPlanGetter(...args) as RpcPlan<any>;
+
+          return {
+            ...originalPlan,
+            execute: async (options: Parameters<typeof originalPlan.execute>[0]) => {
+              const response = await originalPlan.execute(options);
+              return response === null
+                ? null
+                : (response && typeof response === 'object' &&
+                  'value' in response && 'context' in response)
+                ? { context: response.context, value: recursivelyWrapUnavailable(response.value) }
+                : recursivelyWrapUnavailable(response);
+            },
+          };
+        };
+      },
+    }) as RpcApi<any>;
+
+    return createRpc({
+      api: wrappedApi,
+      transport: baseTransport,
+    });
   }
 
-  createForkTransport(): RpcTransport {
-    const createRpcResponse = <const T>(value: T) => ({
-      jsonrpc: "2.0",
-      result: {
-        context: { apiVersion: "2.3.6", slot: Number(this.latestSlot()) },
-        value,
-      },
-      id: 1 as number,
-    } as const);
+  //see https://solana.com/docs/rpc/http
+  private createForkTransport(): RpcTransport {
+    const responseWithContext = <const T>(value: T) =>
+      ({ value, context: { apiVersion: "3.0.11", slot: Number(this.latestSlot()) } } as const);
 
-    type SolanaRpcResponse<T> = ReturnType<typeof createRpcResponse<T>>;
+    const transactionDecoder = getTransactionDecoder();
+
+    const decodeWireTransaction = (wireTx: Base64EncodedWireTransaction): Transaction =>
+      transactionDecoder.decode(base64.decode(wireTx));
+
+    const transactionMetadataToMeta =
+      (result: TransactionMetadata | FailedTransactionMetadata) => {
+        const succeeded = result instanceof TransactionMetadata;
+        const meta = succeeded
+          ? result
+          : result.meta();
+
+        const err = succeeded
+          ? null
+          : ({ code: -1, name: "TransactionError", message: result.toString() });
+
+        const status = succeeded
+          ? { Ok: null }
+          : { Err: result.toString() };
+
+        const returnData = succeeded
+          ? ((result: TransactionMetadata) => {
+              const rd = result.returnData();
+              return {
+                programId: base58.encode(rd.programId()),
+                data:      [base64.encode(rd.data()), "base64"],
+              }
+            })(result)
+          : null;
+
+        const innerInstructions = succeeded
+          ? ((result: TransactionMetadata) => {
+              const innerInstructions = result.innerInstructions();
+              return innerInstructions.length > 0
+                ? innerInstructions.map((inner: any[], index: number) => ({
+                    index,
+                    instructions: inner.map((inst: any) => {
+                      const compiled = inst.instruction();
+                      return {
+                        programIdIndex: compiled.programIdIndex(),
+                        accounts:       Array.from(compiled.accounts()),
+                        data:           base58.encode(compiled.data()),
+                        stackHeight:    inst.stackHeight(),
+                      };
+                    }),
+                  }))
+                : null;
+            })(result)
+          : null;
+
+        return {
+          logMessages:          meta.logs(),
+          computeUnitsConsumed: meta.computeUnitsConsumed(),
+          err,
+          innerInstructions,
+          status,
+          ...(returnData !== null && { returnData }),
+        };
+      };
+
+    //magic value that will be converted to throwing proxy after JSON serialization
+    const unavailable = (feature: string) => ({
+      __unavailable: true as const,
+      __feature: feature,
+    });
+
+    const transactionMetadataToRpcResponse =
+      (result: TransactionMetadata | FailedTransactionMetadata) => {
+        const slot = this.latestSlot();
+        const blockTime = Number(this.latestTimestamp().getTime() / 1000);
+        const transaction = unavailable("transaction");
+        const meta = {
+          fee:               unavailable("fee"),
+          preBalances:       unavailable("preBalances"),
+          postBalances:      unavailable("postBalances"),
+          preTokenBalances:  unavailable("preTokenBalances"),
+          postTokenBalances: unavailable("postTokenBalances"),
+          rewards:           unavailable("rewards"),
+          ...transactionMetadataToMeta(result),
+        };
+        return { slot, blockTime, transaction, meta };
+      };
+
+    const checkEncoding =
+      <F extends Function>(f: F) =>
+        (val: Parameters<F>[0], config?: { encoding?: string }): ReturnType<F> => {
+          if (config?.encoding !== "base64" && config?.encoding !== undefined)
+            throw new Error(`Unsupported encoding: ${config.encoding}, expected "base64"`);
+
+          return f(val, config ? omit(config as any, "encoding") : undefined) as ReturnType<F>;
+        }
 
     const supportedMethods = {
-      getAccountInfo:
-        async (address: Address): Promise<SolanaRpcResponse<MaybeKitAccInfo>> =>
-          createRpcResponse(liteSvmAccountToKitAccount(await this.getAccount(address))),
-      getMultipleAccounts:
-        async (addresses: RoArray<Address>): Promise<SolanaRpcResponse<MaybeKitAccInfo[]>> =>
-          createRpcResponse((await this.getAccount(addresses)).map(liteSvmAccountToKitAccount)),
-    } as const;
+      getAccountInfo: checkEncoding(
+        (address: Address) =>
+          this.getAccount(address)
+            .then(liteSvmAccountToKitAccount)
+            .then(responseWithContext)
+      ),
+
+      getMultipleAccounts: checkEncoding(
+        (addresses: RoArray<Address>) =>
+          this.getAccount(addresses)
+            .then(accs => accs.map(liteSvmAccountToKitAccount))
+            .then(responseWithContext)
+      ),
+
+      getBalance: (address: Address) =>
+        this.getAccount(address)
+          .then(account => account?.lamports ?? 0n)
+          .then(responseWithContext),
+
+      getLatestBlockhash: () => Promise.resolve(
+        responseWithContext({
+          blockhash:            this.latestBlockhash(),
+          lastValidBlockHeight: this.latestSlot(),
+        })
+      ),
+
+      sendTransaction: checkEncoding(
+        (wireTx: Base64EncodedWireTransaction) =>
+          this.sendTransaction(decodeWireTransaction(wireTx))
+            .then(meta => base58.encode(meta.signature()) as Signature)
+      ),
+
+      simulateTransaction: checkEncoding(
+        (wireTx: Base64EncodedWireTransaction, config?: { innerInstructions?: boolean }) =>
+          this.simulateTransaction(decodeWireTransaction(wireTx))
+            .catch(error => {
+              if (error instanceof FailedTransactionMetadata)
+                return error;
+
+              throw error;
+            })
+            .then(transactionMetadataToMeta)
+            .then(meta => ({
+              err:           meta.err,
+              logs:          meta.logMessages,
+              unitsConsumed: meta.computeUnitsConsumed,
+              returnData:    meta.returnData ?? null,
+              ...(config?.innerInstructions && { innerInstructions: meta.innerInstructions }),
+            }))
+            .then(responseWithContext)
+      ),
+
+      getTransaction: checkEncoding(
+        (signature: Signature) => {
+          const result = this.getTransaction(base58.decode(signature));
+          return Promise.resolve(result ? transactionMetadataToRpcResponse(result) : null);
+        }
+      ),
+    } as Record<string, (...args: any[]) => Promise<any>>;
 
     return function <TResponse>(transportConfig: Parameters<RpcTransport>[0]): Promise<TResponse> {
       const { payload } = transportConfig;
@@ -255,102 +480,44 @@ export class ForkSvm {
       if (!isJsonRpcPayload(payload))
         throw new Error(`Unsupported payload: ${payload}`);
 
-      type PermissiveDict<R extends Record<PropertyKey, unknown>> = Record<string, R[keyof R]>;
-      const method = (supportedMethods as PermissiveDict<typeof supportedMethods>)[payload.method];
+      const method = supportedMethods[payload.method];
 
       if (method === undefined)
         throw new Error(`Unsupported method: ${payload.method}`);
 
-      if (!Array.isArray(payload.params) || payload.params.length < 2)
+      if (!Array.isArray(payload.params))
         throw new Error(`Unexpected params: ${JSON.stringify(payload.params)}`);
 
-      const encoding = payload.params[1]?.encoding;
-
-      if (encoding !== "base64")
-        throw new Error(`Missing or unsupported encoding: ${encoding}, expected "base64"`);
-
-      return method(payload.params[0]) as Promise<TResponse>;
+      return method(...payload.params)
+        .then((result: any) => ({ jsonrpc: "2.0", result, id: 1 as number })) as Promise<TResponse>;
     };
   }
 
+  private checkTxSize(tx: Transaction): void {
+    const size = 1 + Object.keys(tx.signatures).length * signatureSize + tx.messageBytes.length;
+    if (size > svmMaxTxSize)
+      throw new Error(`Transaction is too large: ${size}/${svmMaxTxSize} bytes`);
+  }
+
   private async fetchUnfetchedOfTx(tx: Transaction): Promise<void> {
-    //see https://solanacookbook.com/guides/versioned-transactions
-    //backup: https://github.com/solana-developers/solana-cookbook/blob/master/docs/guides/versioned-transactions.md
-    //(I deliberately chopped off the .html ending of the solanacookbook link because otherwise
-    //  one is redirected to the official, shitty docs whose explanation is far too superficial)
-    //We could use getCompiledTransactionMessageDecoder().decode(tx.messageBytes) here but
-    //  it is more heavy weight than necessary and we can easily parse what we need ourselves
-    const msgBytes = tx.messageBytes;
-    const firstByte = msgBytes[0]!;
-    const version = (firstByte & 0x80) === 0 ? "legacy" : firstByte & 0x7f;
-    if (version !== "legacy" && version !== 0)
-      throw new Error(`Unsupported transaction version: ${version}`);
+    const decompiledTx = decodeCompiledTransactionMessage(tx.messageBytes);
+    const accounts = decompiledTx.staticAccounts;
+    if (decompiledTx.version === 0 && decompiledTx.addressTableLookups !== undefined) {
+      const addressTableLookups = decompiledTx.addressTableLookups!;
+      await this.fetchUnfetched(addressTableLookups!.map(lt => lt.lookupTableAddress));
+      for (const lt of addressTableLookups) {
+        const { lookupTableAddress: altAddr, readonlyIndexes, writableIndexes } = lt;
+        const accInfo = this.liteSvm.getAccount(altAddr);
+        if (!accInfo)
+          throw new Error(`Couldn't find lookup table: ${altAddr}`);
 
-    //for legacy transactions, the first 3 bytes are the header, for v0 transactions
-    //  the first byte becomes the version and everything else is bumped back by 1
-    let offset = version === "legacy" ? 3 : 4;
-    //read static address compact array length and decode the addresses
-    let count = msgBytes[offset++]!;
-    const staticAddrs = range(count).map(i => decodeAddr(msgBytes, offset + i * addressSize));
-
-    return this.fetchUnfetched(
-      version === "legacy"
-      ? staticAddrs
-      : await (async () => {
-        //step over static addresses and the recent blockhash
-        offset += count * addressSize + hashSize;
-
-        //step over instructions
-        [count, offset] = decodeCompactU16(msgBytes, offset);
-        const instructionCount = count;
-        for (let i = 0; i < instructionCount; ++i) {
-          ++offset; //skip programId index
-          [count, offset] = decodeCompactU16(msgBytes, offset);
-          offset += count; //skip account indices
-          [count, offset] = decodeCompactU16(msgBytes, offset);
-          offset += count; //skip instruction data
-        }
-
-        //parse all lookup tables of the tx and their associated indices
-        const lookupTableCount = msgBytes[offset++]!;
-        //early bailout
-        if (lookupTableCount === 0)
-          return staticAddrs;
-
-        const [lookupTableAddresses, lookupTableIndices] = zip(
-          range(lookupTableCount).map(() => { //mutates offset
-            const address = decodeAddr(msgBytes, offset);
-            offset += addressSize;
-            const [wCount, wOffset] = decodeCompactU16(msgBytes, offset);
-            offset = wOffset + wCount;
-            const [rCount, rOffset] = decodeCompactU16(msgBytes, offset);
-            offset = rOffset + rCount;
-            const indices = [
-              ...range(wCount).map(i => msgBytes[wOffset + i]!),
-              ...range(rCount).map(i => msgBytes[rOffset + i]!),
-            ];
-            return [address, indices] as const;
-          })
-        );
-
-        //fetch any missing lookup table accounts
-        await this.fetchUnfetched(lookupTableAddresses);
-
-        const lookupTableAccInfos = lookupTableAddresses.map(addr => this.liteSvm.getAccount(addr));
-        const dynamicAddrs = lookupTableAccInfos.flatMap((accInfo, index) => {
-          const address = lookupTableAddresses[index]!;
-          const indices = lookupTableIndices[index]!;
-          if (!accInfo)
-            throw new Error(`Couldn't find lookup table: ${address}`);
-
-          //ALT header is 56 bytes immediately followed by the array of addresses (on length prefix)
-          //see here: https://github.com/solana-program/address-lookup-table/blob/740dddc683057a390f0f02e66e4aa1dfa63e96a7/program/src/state.rs#L15
-          return indices.map(i => decodeAddr(accInfo.data, 56 + i * addressSize));
-        });
-
-        return [...staticAddrs, ...dynamicAddrs];
-      })()
-    );
+        const { addresses } = deserialize(addressLookupTableLayout, accInfo.data);
+        accounts.push(...[...writableIndexes, ...readonlyIndexes].map(i =>
+          definedOrThrow(addresses[i], `Out of bounds index: ${i} for lookup table: ${altAddr}`)
+        ));
+      }
+    }
+    return this.fetchUnfetched(accounts);
   }
 
   private async fetchUnfetched(addresses: RoArray<Address>): Promise<void> {
@@ -369,7 +536,9 @@ export class ForkSvm {
       .filter(([acc]) => acc?.executable && acc.owner === bpfLoaderUpgradeableProgramId)
       //the first 4 bytes of a bpf upgradeable loader account are the encoded enum type
       //see https://bonfida.github.io/doc-dex-program/solana_program/bpf_loader_upgradeable/enum.UpgradeableLoaderState.html#variant.ProgramData
-      .map(([acc, pId]) => [decodeAddr(acc!.data, 4), pId] as const)
+      .map(([acc, pId]) =>
+        [deserialize(svmAddressItem, acc!.data.subarray(4, 4 + addressSize)), pId] as const
+      )
       .filter(([bytecodeAddr]) => this.isUnfetched(bytecodeAddr));
 
     if (unfetchedUpgradable.length > 0) {

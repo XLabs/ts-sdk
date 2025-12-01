@@ -325,8 +325,8 @@ export class LiteSVM {
   sendTransaction(tx: Transaction): TransactionMetadata | FailedTransactionMetadata {
     const serialized = getTransactionEncoder().encode(tx) as Uint8Array;
     return this.isLegacyTransaction(tx)
-      ? this.inner.sendVersionedTransaction(serialized)
-      : this.inner.sendLegacyTransaction(serialized);
+      ? this.inner.sendLegacyTransaction(serialized)
+      : this.inner.sendVersionedTransaction(serialized);
   }
 
   /**
