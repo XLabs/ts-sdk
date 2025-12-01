@@ -157,7 +157,8 @@ describe("ForkSvm", () => {
 
   describe("save and load", () => {
     it("should save and load a snapshot", async () => {
-      await forkSvm.airdrop(payer, 1000n);
+      const balance = 10n**9n;
+      await forkSvm.airdrop(payer, balance);
       forkSvm.setAccount(mint, createMintAccount(payer));
 
       const snapshot = forkSvm.save();
@@ -168,7 +169,7 @@ describe("ForkSvm", () => {
       const newForkSvm = ForkSvm.load(snapshot);
       const account = await newForkSvm.getAccount(payer);
       assert(account);
-      assert.strictEqual(account.lamports, 1000n);
+      assert.strictEqual(account.lamports, balance);
     });
   });
 
