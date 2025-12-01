@@ -64,6 +64,9 @@ importers:
       '@solana/rpc-spec':
         specifier: 'catalog:'
         version: 5.0.0(typescript@5.9.3)
+      '@xlabs-xyz/binary-layout':
+        specifier: workspace:*
+        version: link:../binary-layout
       '@xlabs-xyz/const-utils':
         specifier: workspace:*
         version: link:../const-utils

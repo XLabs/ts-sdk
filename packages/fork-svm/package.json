@@ -36,7 +36,7 @@
     "prepublishOnly": "pnpm test && pnpm build",
     "build:litesvm": "node scripts/platformBinaryExists.js || scripts/build.sh",
     "build:litesvm:force": "scripts/build.sh",
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "tsx --test tests/**/*.test.ts",
     "clean": "rm -rf ./dist"
   },
   "peerDependencies": {
@@ -48,6 +48,7 @@
     "@solana/rpc-spec-types": "*"
   },
   "devDependencies": {
+    "@xlabs-xyz/binary-layout": "workspace:*",
     "@xlabs-xyz/const-utils": "workspace:*",
     "@xlabs-xyz/svm": "workspace:*",
     "@xlabs-xyz/utils": "workspace:*",
