@@ -25,7 +25,7 @@ import {
   stringConversion,
 } from "@xlabs-xyz/binary-layout";
 import { type KindWithAtomic } from "@xlabs-xyz/amount";
-import { amountItem, hashItem } from "@xlabs-xyz/common";
+import { amountItem, hashItem, paddingItem } from "@xlabs-xyz/common";
 import { base58, bytes } from "@xlabs-xyz/utils";
 import { type DiscriminatorType, discriminatorOf } from "./utils.js";
 import { zeroAddress, addressSize } from "./constants.js";
@@ -34,6 +34,8 @@ export const littleEndian = <const L extends Layout>(layout: L) =>
   setEndianness(layout, "little");
 
 export const bumpItem = { binary: "uint", size: 1 } as const satisfies Item;
+
+export const u64Item = { binary: "uint", size: 8, endianness: "little" } as const satisfies Item;
 
 export const svmAddressItem = {
   binary: "bytes",
@@ -45,9 +47,7 @@ export const svmAddressItem = {
 } as const satisfies Item;
 
 export const lamportsItem = {
-  binary: "uint",
-  size: 8,
-  endianness: "little",
+  ...u64Item,
   custom: {
     to:   (lamports: bigint)   => lamports as Lamports,
     from: (lamports: Lamports) => lamports,
@@ -119,15 +119,19 @@ export const cEnumItem = <const E extends readonly string[]>(names: E, size: Num
   enumItem(valueIndexEntries(names), { size, endianness: "little" });
 
 // named after https://docs.rs/solana-program-option/latest/solana_program_option/enum.COption.html
-const baseCOptionLayout = <const L extends Layout>(layout: L) => [
-  { name: "isSome",  ...boolItem(), size: 4, endianness: "little" },
-  { name: "value",   binary: "bytes", layout                      },
+const baseCOptionLayout = <const L extends Layout>(layout: L, size: NumberSize) => [
+  { name: "isSome",  ...boolItem(), size, endianness: "little" },
+  { name: "value",   binary: "bytes", layout                   },
 ] as const;
 type BaseCOptionLayout<L extends Layout> = DeriveType<ReturnType<typeof baseCOptionLayout<L>>>;
 
-export const cOptionItem = <const L extends Layout>(layout: L, defaultValue: DeriveType<L>) => ({
+export const cOptionItem = <const L extends Layout>(
+  layout: L,
+  defaultValue: DeriveType<L>,
+  size: NumberSize = 4,
+) => ({
   binary: "bytes",
-  layout: baseCOptionLayout(layout),
+  layout: baseCOptionLayout(layout, size),
   custom: {
     to: (obj: BaseCOptionLayout<L>) =>
       obj.isSome ? obj.value : undefined,
@@ -136,15 +140,16 @@ export const cOptionItem = <const L extends Layout>(layout: L, defaultValue: Der
   },
 } as const);
 
-export const cOptionAddressItem = cOptionItem(svmAddressItem, zeroAddress);
+export const cOptionAddressItem = (size: NumberSize = 4) =>
+  cOptionItem(svmAddressItem, zeroAddress, size);
 
 const baseMintAccountLayout = <const I extends UintItem>(item: I) => [
-  { name: "mintAuthority",   ...cOptionAddressItem   },
+  { name: "mintAuthority",   ...cOptionAddressItem() },
   { name: "supply",          ...item                 },
   { name: "decimals",        binary: "uint", size: 1 },
   { name: "isInitialized",   ...boolItem()           },
-  { name: "freezeAuthority", ...cOptionAddressItem   },
-] as const satisfies ProperLayout;
+  { name: "freezeAuthority", ...cOptionAddressItem() },
+] as const;
 
 const untypedMintAccountLayout = baseMintAccountLayout(lamportsItem);
 const typedMintAccountLayout = <const K extends KindWithAtomic>(kind: K) =>
@@ -171,11 +176,11 @@ const baseTokenAccountLayout = <const I extends UintItem>(item: I) => [
   { name: "mint",            ...svmAddressItem                            },
   { name: "owner",           ...svmAddressItem                            },
   { name: "amount",          ...item                                      },
-  { name: "delegate",        ...cOptionAddressItem                        },
+  { name: "delegate",        ...cOptionAddressItem()                      },
   { name: "state",           ...cEnumItem(tokenStates)                    },
   { name: "isNative",        ...cOptionItem(lamportsItem, 0n as Lamports) },
   { name: "delegatedAmount", ...item                                      },
-  { name: "closeAuthority",  ...cOptionAddressItem                        },
+  { name: "closeAuthority",  ...cOptionAddressItem()                      },
 ] as const;
 
 const untypedTokenAccountLayout = baseTokenAccountLayout(lamportsItem);
@@ -205,6 +210,24 @@ export const durableNonceAccountLayout = [
 ] as const satisfies ProperLayout;
 
 export type DurableNonceAccount = DeriveType<typeof durableNonceAccountLayout>;
+
+//see https://github.com/solana-program/address-lookup-table/blob/main/program/src/state.rs#L64
+const assumeInitializedAltItem = {
+  binary: "uint", size: 4, endianness: "little", custom: 1, omit: true
+} as const satisfies Item;
+
+//see https://github.com/solana-program/address-lookup-table/blob/main/program/src/state.rs#L20
+export const addressLookupTableLayout = [
+  { name: "_state",                     ...assumeInitializedAltItem             },
+  { name: "deactivationSlot",           ...u64Item                              },
+  { name: "lastExtendedSlot",           ...u64Item                              },
+  { name: "lastExtendedSlotStartIndex", binary: "uint", size: 1                 },
+  { name: "authority",                  ...cOptionAddressItem(1)                },
+  { name: "_alignmentPadding",          ...paddingItem(2)                       },
+  { name: "addresses",                  binary: "array", layout: svmAddressItem },
+] as const satisfies ProperLayout;
+
+export type AddressLookupTable = DeriveType<typeof addressLookupTableLayout>;
 
 //actual impl: https://github.com/anza-xyz/solana-sdk/blob/master/offchain-message/src/lib.rs#L162
 //DO NOT TRUST THE OUTDATED PROPOSAL:

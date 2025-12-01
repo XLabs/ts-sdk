@@ -25,8 +25,18 @@ import { deserialize } from "@xlabs-xyz/binary-layout";
 import { type KindWithAtomic } from "@xlabs-xyz/amount";
 import type { DistributiveAmount, Byte } from "@xlabs-xyz/common";
 import { byte } from "@xlabs-xyz/common";
-import type { MintAccount,TokenAccount } from "./layouting.js";
-import { mintAccountLayout, tokenAccountLayout } from "./layouting.js";
+import type {
+  MintAccount,
+  TokenAccount,
+  DurableNonceAccount,
+  AddressLookupTable,
+} from "./layouting.js";
+import {
+  mintAccountLayout,
+  tokenAccountLayout,
+  durableNonceAccountLayout,
+  addressLookupTableLayout,
+} from "./layouting.js";
 
 const base64 = getBase64Codec();
 
@@ -57,7 +67,7 @@ type RpcAccountInfo = Readonly<{
   data:       Base64EncodedDataResponse;
 }> | null;
 
-const toAccountInfo = (accInfo: RpcAccountInfo): AccountInfo | undefined => 
+const toAccountInfo = (accInfo: RpcAccountInfo): AccountInfo | undefined =>
   accInfo ? {
     ...accInfo,
     space: byte(accInfo.space),
@@ -65,7 +75,7 @@ const toAccountInfo = (accInfo: RpcAccountInfo): AccountInfo | undefined =>
   }
   : undefined;
 
-const encb64 = { encoding: "base64" } as const;    
+const encb64 = { encoding: "base64" } as const;
 
 export const sendTransaction =
   (client: SvmClient, wireTx: Base64EncodedWireTransaction): Promise<string> =>
@@ -127,7 +137,21 @@ export const getTokenBalance = <
       (maybeToken as { amount: AmountType<K> } | undefined)?.amount,
     )) as any;
 
-export const getLatestBlockhash = (client: SvmClient): Promise<BlockHashInfo> =>
+export const getDurableNonceAccount = (
+  client: SvmClient,
+  address: Address,
+): Promise<DurableNonceAccount | undefined> =>
+  getDeserializedAccount(client, address, durableNonceAccountLayout);
+
+export const getAddressLookupTable = (
+  client: SvmClient,
+  address: Address,
+): Promise<AddressLookupTable | undefined> =>
+  getDeserializedAccount(client, address, addressLookupTableLayout);
+
+export const getLatestBlockhash = (
+  client: SvmClient,
+): Promise<BlockHashInfo> =>
   client.getLatestBlockhash().send().then(res => res.value);
 
 export const addLifetimeAndSendTx = (
