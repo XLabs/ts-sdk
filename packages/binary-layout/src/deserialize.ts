@@ -1,5 +1,5 @@
 import type { RoUint8Array, RoPair, RoArray } from "@xlabs-xyz/const-utils";
-import { isUint8Array } from "@xlabs-xyz/const-utils";
+import { isUint8Array, If } from "@xlabs-xyz/const-utils";
 import type {
   Endianness,
   Layout,
@@ -21,7 +21,7 @@ import {
 import { getCachedSerializedFrom } from "./serialize.js";
 
 export type DeserializeReturn<L extends Layout, B extends boolean> =
-  B extends true ? DeriveType<L> : RoPair<DeriveType<L>, number>;
+  If<B, DeriveType<L>, RoPair<DeriveType<L>, number>>;
 
 export function deserialize<const L extends Layout, const B extends boolean = true>(
   layout: L,

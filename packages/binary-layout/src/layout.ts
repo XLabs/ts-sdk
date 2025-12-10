@@ -4,6 +4,7 @@ import type {
   RoPair,
   RoArray,
   TupleWithLength,
+  If,
 } from "@xlabs-xyz/const-utils";
 
 export type NumType = number | bigint;
@@ -28,13 +29,13 @@ export type NumSizeToPrimitive<Size extends number> =
   : number | bigint;
 
 export type FixedConversion<FromType extends PrimitiveType | LayoutObject, ToType> = {
-  readonly to: ToType,
+  readonly to:   ToType,
   readonly from: FromType,
 };
 
 export type CustomConversion<FromType extends PrimitiveType | LayoutObject, ToType> = {
-  readonly to: (val: FromType) => ToType,
-  readonly from: (val: ToType) => FromType,
+  readonly to:   (val: FromType) => ToType,
+  readonly from: (val: ToType  ) => FromType,
 };
 
 export interface ItemBase<BL extends BinaryLiterals> {
@@ -43,7 +44,7 @@ export interface ItemBase<BL extends BinaryLiterals> {
 
 interface FixedOmittableCustom<T extends PrimitiveType> {
   readonly custom: T,
-  readonly omit?: boolean
+  readonly omit?:  boolean
 };
 
 //length size: number of bytes used to encode the preceeding length field which in turn
@@ -57,20 +58,20 @@ export interface LengthPrefixed {
 }
 
 //size: number of bytes used to encode the item
-interface NumItemBase<T extends NumType, Signed extends Boolean>
-    extends ItemBase<Signed extends true ? "int" : "uint"> {
-  readonly size: T extends bigint ? number : NumberSize,
+interface NumItemBase<T extends NumType, Signed extends boolean>
+    extends ItemBase<If<Signed, "int", "uint">> {
+  readonly size:        T extends bigint ? number : NumberSize,
   readonly endianness?: Endianness, //see defaultEndianness
 };
 
 export interface FixedPrimitiveNum<
   T extends NumType,
-  Signed extends Boolean
+  Signed extends boolean
 > extends NumItemBase<T, Signed>, FixedOmittableCustom<T> {};
 
 export interface OptionalToFromNum<
   T extends NumType,
-  Signed extends Boolean
+  Signed extends boolean
 > extends NumItemBase<T, Signed> {
   readonly custom?: FixedConversion<T, any> | CustomConversion<T, any>
 };

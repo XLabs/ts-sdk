@@ -1,4 +1,4 @@
-import type { RoUint8Array, RoNeTuple, RoPair, RoArray } from "@xlabs-xyz/const-utils";
+import type { RoUint8Array, RoNeTuple, RoPair, RoArray, If } from "@xlabs-xyz/const-utils";
 import type {
   Layout,
   ProperLayout,
@@ -60,22 +60,22 @@ type FilterItem<II extends Item, Fixed extends boolean> =
   II extends infer I extends Item
   ? I extends NumItem
     ? I["custom"] extends NumType | FixedConversion<infer _From extends NumType, infer _To>
-      ? Fixed extends true ? I : void
-      : Fixed extends true ? void : I
+      ? If<Fixed, I, void>
+      : If<Fixed, void, I>
     : I extends ArrayItem
     ? FilterLayoutOfItem<I, Fixed>
     : I extends BytesItem & { readonly layout: Layout }
     ? I["custom"] extends
         { readonly custom: FixedConversion<infer _From extends LayoutObject, infer _To> }
-      ? Fixed extends true ? I : void
+      ? If<Fixed, I, void>
       : I extends { readonly custom: CustomConversion<infer _From extends LayoutObject, infer _To> }
-      ? Fixed extends true ? void : I
+      ? If<Fixed, void, I>
       : FilterLayoutOfItem<I, Fixed>
     : I extends BytesItem
     ? I["custom"] extends RoUint8Array |
                           FixedConversion<infer _From extends RoUint8Array, infer _To>
-      ? Fixed extends true ? I : void
-      : Fixed extends true ? void : I
+      ? If<Fixed, I, void>
+      : If<Fixed, void, I>
     : I extends SwitchItem
     ? { readonly [K in keyof I]:
         K extends "layouts" ? FilterItemsOfIPLPairs<I["layouts"], Fixed> : I[K]
