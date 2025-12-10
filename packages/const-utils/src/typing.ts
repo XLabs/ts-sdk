@@ -6,10 +6,17 @@ export type RoArray  <T = unknown> = readonly T[];
 export type RoPair   <T = unknown, U = unknown> = readonly [T, U];
 
 //from here: https://github.com/microsoft/TypeScript/issues/37792#issuecomment-1140888933
-//same as @solana/kit's ReadonlyUint8Array
+//adjusted to
+//1. include latest Uint8Array instance methods, see:
+//     https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array
+//2. fix .subarray() to also return a RoUint8Array
 type TypedArrayMutableProperties = "copyWithin" | "fill" | "reverse" | "set" | "sort";
-export interface RoUint8Array extends Omit<Uint8Array, TypedArrayMutableProperties> {
+type Uint8ArrayMutableProperties = "setFromBase64" | "setFromHex";
+type Uint8ArrayOmittedProperties =
+  TypedArrayMutableProperties | Uint8ArrayMutableProperties | "subarray";
+export interface RoUint8Array extends Omit<Uint8Array, Uint8ArrayOmittedProperties> {
   readonly [n: number]: number;
+  subarray(...params: Parameters<Uint8Array["subarray"]>): RoUint8Array;
 }
 
 //Function is is a generic overload of the built-in type
@@ -21,6 +28,15 @@ export interface RoUint8Array extends Omit<Uint8Array, TypedArrayMutableProperti
 export type Function<P extends RoArray<unknown> = RoArray<any>, R = unknown> =
   (...args: P) => R;
 
+//Extend this type to create an object-like interface which is expected to be overridden,
+//  e.g. via a type declaration. An empty interface is equivalent to `any`, and allows values
+//  which are not object-like such as numbers or strings. A `Record<PropertyKey, never>` prohibits
+//  declaration merging. `object` itself cannot be extended directly, so we define this type alias.
+export type BaseObject = object;
+
+export type If<C extends boolean, T, F> = C extends true ? T : F;
+
+export type Opts<T> = { readonly [K in keyof T]?: T[K] | undefined };
 
 export type Simplify<T> = { [K in keyof T]: T[K] } & unknown;
 
@@ -85,3 +101,18 @@ export type DeepReadonly<T> =
 export const deepReadonly = <const T>(value: T): DeepReadonly<T> => value as DeepReadonly<T>;
 
 export type Mutable<T> = { -readonly [P in keyof T]: T[P] };
+
+export const mutable = <const T>(value: T): Mutable<T> => value as Mutable<T>;
+
+export type DeepMutable<T> =
+  IsAny<T> extends true
+  ? any
+  : T extends RoTuple
+  ? T extends HeadTail<T, infer Head, infer Tail>
+    ? [DeepMutable<Head>, ...DeepMutable<Tail>]
+    : []
+  : T extends object
+  ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
+  : T;
+
+export const deepMutable = <const T>(value: T): DeepMutable<T> => value as DeepMutable<T>;

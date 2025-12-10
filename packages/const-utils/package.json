@@ -4,7 +4,7 @@
   "version": "4.0.1",
   "author": "xLabs",
   "license": "Apache-2.0",
-  "description": "Type-safe utilities for readonly and const data structures, including bidirectional mappings, array transformations, and object manipulation",
+  "description": "Type-safe utilities for readonly and const data structures, including bidirectional mappings, array transformations, and object manipulation, along with general typing utilities",
   "keywords": [
     "mapping",
     "type-safe",

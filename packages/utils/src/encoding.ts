@@ -1,6 +1,5 @@
 import { base16 as b16, base64 as b64, base58 as b58, bech32 as be32 } from "@scure/base";
 import type { RoUint8Array } from "@xlabs-xyz/const-utils";
-import type { PreserveBrand } from "./branding.js";
 
 export const stripPrefix = (prefix: string, str: string): string =>
   str.startsWith(prefix) ? str.slice(prefix.length) : str;
@@ -115,28 +114,27 @@ export const bytes = {
   equals: (lhs: RoUint8Array, rhs: RoUint8Array): boolean =>
     lhs.length === rhs.length && lhs.every((v, i) => v === rhs[i]),
 
-  zpad: <U extends RoUint8Array>(
-    arr: U,
-    length: number,
-    padStart: boolean = true,
-  ): PreserveBrand<U, Uint8Array> => {
+  zpad: (arr: RoUint8Array, length: number, padStart: boolean = true): Uint8Array => {
     if (length === arr.length)
-      return new Uint8Array(arr) as any;
+      return new Uint8Array(arr);
 
     if (length < arr.length)
       throw new Error(`Padded length must be >= input length`);
 
-    const result = new Uint8Array(length) as any;
+    const result = new Uint8Array(length);
     result.set(arr, padStart ? length - arr.length : 0);
     return result;
   },
 
-  concat: <U extends RoUint8Array>(...args: U[]): PreserveBrand<U, Uint8Array> => {
+  concat: (...args: RoUint8Array[]): Uint8Array => {
     if (args.length < 2)
-      return (args.length === 1 ? args[0]! : new Uint8Array(0)) as any;
+      //you'd think that the language developers would be able to provide correct overloads for
+      //  the constructor of Uint8Array, but no - we have to any cast or duplicate the Uint8Array
+      //  constructor call in both ternary branches
+      return (new Uint8Array((args.length === 1 ? args[0]! : 0) as any));
 
     const length = args.reduce((acc, curr) => acc + curr.length, 0);
-    const result = new Uint8Array(length) as any;
+    const result = new Uint8Array(length);
     let offset = 0;
     for (const arg of args) {
       result.set(arg, offset);

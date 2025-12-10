@@ -22,9 +22,8 @@ export const bigintReplacer = (_key: string, value: unknown): unknown =>
 export const bigintReviver = (_key: string, value: unknown): unknown =>
   isSerializedBigint(value) ? BigInt(value.value) : value;
 
-export const serializeBigints = (
-  obj: Record<string, unknown>,
-): Record<string, unknown> => JSON.parse(JSON.stringify(obj, bigintReplacer));
+export const serializeBigints = (obj: Record<string, unknown>): Record<string, unknown> =>
+  JSON.parse(JSON.stringify(obj, bigintReplacer));
 
 export const deserializeBigints = <T>(obj: Record<string, unknown>): T =>
   JSON.parse(JSON.stringify(obj), bigintReviver) as T;
