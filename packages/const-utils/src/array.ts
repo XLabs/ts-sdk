@@ -1,10 +1,9 @@
-import type { RoUint8Array } from "./typing.js";
-
 import type {
   RoPair,
   Tuple,
   RoTuple,
   RoArray,
+  RoUint8Array,
   HeadTail,
 } from "./typing.js";
 

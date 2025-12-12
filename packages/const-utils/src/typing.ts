@@ -5,19 +5,39 @@ export type RoNeTuple<T = unknown> = Readonly<NeTuple<T>>;
 export type RoArray  <T = unknown> = readonly T[];
 export type RoPair   <T = unknown, U = unknown> = readonly [T, U];
 
-//from here: https://github.com/microsoft/TypeScript/issues/37792#issuecomment-1140888933
-//adjusted to
-//1. include latest Uint8Array instance methods, see:
-//     https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array
-//2. fix .subarray() to also return a RoUint8Array
+//see ../RoUint8Array.md for detailed explanation of this implementation
+declare const roBrand: unique symbol;
+interface Marker<TArrayBuffer extends ArrayBufferLike>
+    extends Uint8Array<TArrayBuffer> {
+  [roBrand]: true;
+}
+
+type ReplaceMarker<T, Self, TArrayBuffer extends ArrayBufferLike> =
+  T extends Marker<TArrayBuffer>
+  ? Self
+  : T extends Uint8Array | ArrayBuffer | IteratorObject<unknown>
+  ? T
+  : T extends Function<infer A, infer R>
+  ? Function<ReplaceMarker<A, Self, TArrayBuffer>, ReplaceMarker<R, Self, TArrayBuffer>>
+  : T extends RoArray
+  ? { readonly [K in keyof T]: ReplaceMarker<T[K], Self, TArrayBuffer> }
+  : T extends object
+  ? { [K in keyof T]: ReplaceMarker<T[K], Self, TArrayBuffer> }
+  : T;
+
 type TypedArrayMutableProperties = "copyWithin" | "fill" | "reverse" | "set" | "sort";
 type Uint8ArrayMutableProperties = "setFromBase64" | "setFromHex";
 type Uint8ArrayOmittedProperties =
-  TypedArrayMutableProperties | Uint8ArrayMutableProperties | "subarray";
-export interface RoUint8Array extends Omit<Uint8Array, Uint8ArrayOmittedProperties> {
-  readonly [n: number]: number;
-  subarray(...params: Parameters<Uint8Array["subarray"]>): RoUint8Array;
-}
+  TypedArrayMutableProperties | Uint8ArrayMutableProperties | "subarray" | typeof roBrand;
+
+type RoUint8ArrayBase<Self, TArrayBuffer extends ArrayBufferLike> =
+  ReplaceMarker<Omit<Marker<TArrayBuffer>, Uint8ArrayOmittedProperties>, Self, TArrayBuffer> & {
+    readonly [n: number]: number;
+    subarray(...params: Parameters<Uint8Array["subarray"]>): Self;
+  };
+
+export interface RoUint8Array<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike>
+  extends RoUint8ArrayBase<RoUint8Array<TArrayBuffer>, TArrayBuffer> {}
 
 //Function is is a generic overload of the built-in type
 //  It should work as a more powerful drop-in replacement.
