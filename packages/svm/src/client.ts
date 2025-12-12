@@ -22,8 +22,8 @@ import type { RoArray, MaybeArray, MapArrayness } from "@xlabs-xyz/const-utils";
 import { isArray, mapTo } from "@xlabs-xyz/const-utils";
 import type { Layout, DeriveType } from "@xlabs-xyz/binary-layout";
 import { deserialize } from "@xlabs-xyz/binary-layout";
-import { type KindWithAtomic } from "@xlabs-xyz/amount";
-import type { DistributiveAmount, Byte } from "@xlabs-xyz/common";
+import type { Amount, KindWithAtomic } from "@xlabs-xyz/amount";
+import type { Byte } from "@xlabs-xyz/common";
 import { byte } from "@xlabs-xyz/common";
 import type {
   MintAccount,
@@ -105,7 +105,7 @@ export const getDeserializedAccount = <
   )) as any;
 
 export type AmountType<K extends KindWithAtomic | undefined> =
-  K extends KindWithAtomic ? DistributiveAmount<K> : bigint;
+  K extends KindWithAtomic ? Amount<K> : bigint;
 
 export const getMint = <const K extends KindWithAtomic | undefined = undefined>(
   client: SvmClient,

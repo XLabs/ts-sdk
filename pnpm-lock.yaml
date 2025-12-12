@@ -27,7 +27,11 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  packages/amount: {}
+  packages/amount:
+    devDependencies:
+      '@xlabs-xyz/const-utils':
+        specifier: workspace:*
+        version: link:../const-utils
 
   packages/binary-layout:
     devDependencies:

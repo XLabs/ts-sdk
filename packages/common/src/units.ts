@@ -1,74 +1,70 @@
-import { type Kind, Amount, Rational } from "@xlabs-xyz/amount";
+import { Amount, kind, scalar } from "@xlabs-xyz/amount";
 
-export type DistributiveAmount<K extends Kind, E extends Kind = Kind> =
-  K extends E ? Amount<K> : never;
-
-export const unit = <const T, const U>(symbol: T, scale: U) => ({ symbol, scale } as const);
-export const oom = (order: number) => order < 0
-  ? Rational.from(1n, 10n**BigInt(-order))
-  : 10n**BigInt(order);
-
-export const Percentage = {
-  name: "Percentage",
-  human: "%",
-  units: [
-    unit("scalar", 1),
-    unit("%", oom(-2)),
-    unit("bp", oom(-4)),
+export const Percentage = scalar(kind(
+  "Percentage",
+  [ { symbols: [{ symbol: "scalar" },
+                { symbol: "x" } ]          },
+    { symbols: [{ symbol: "%" } ], oom: -2 },
+    { symbols: [{ symbol: "bp" }], oom: -4 },
   ],
-} as const satisfies Kind;
+  { human: "%" },
+));
 export type Percentage = Amount<typeof Percentage>;
 export const percentage = Amount.ofKind(Percentage);
 
-export const applyPercentage =
-  <K extends Kind>(amount: Amount<K>, percentage: Percentage): Amount<K> =>
-    amount.mul(percentage.toUnit("scalar"));
-
-export const Duration = {
-  name: "Duration",
-  units: [
-    unit("sec", 1),
-    unit("min", 60),
-    unit("hr", 60*60),
-    unit("day", 60*60*24),
-    unit("msec", oom(-3)),
-    unit("µsec", oom(-6)),
-    unit("nsec", oom(-9)),
+export const Duration = kind(
+  "Duration",
+  [ { symbols: [{ symbol: "sec",  plural: "secs"  }], scale:               1 },
+    { symbols: [{ symbol: "min",  plural: "mins"  }], scale:              60 },
+    { symbols: [{ symbol: "hr",   plural: "hrs"   }], scale:           60*60 },
+    { symbols: [{ symbol: "day",  plural: "days"  }], scale:        24*60*60 },
+    { symbols: [{ symbol: "week", plural: "weeks" }], scale:      7*24*60*60 },
+    { symbols: [{ symbol: "year", plural: "years" }], scale: 365.25*24*60*60 }, //Julian year
+    { symbols: [{ symbol: "msec", plural: "msecs" }], scale:          10**-3 },
+    { symbols: [{ symbol: "µsec", plural: "µsecs" }], scale:          10**-6 },
+    { symbols: [{ symbol: "nsec", plural: "nsecs" }], scale:          10**-9 },
   ],
-} as const satisfies Kind;
+);
 export type Duration = Amount<typeof Duration>;
 export const duration = Amount.ofKind(Duration);
 
-export const Byte = {
-  name: "Byte",
-  //In a general use case, there probably shouldn't be a human unit type because specifying
-  //  e.g. HDD sizes in bytes is very much not human.
-  //But given our context, we are almost exclusively dealing with amounts < 1 kB and so this choice
-  //  ought to be reasonable.
-  human: "byte",
-  atomic: "byte",
-  units: [
-    unit("byte", 1n),
-    unit("kB", oom(3)),
-    unit("MB", oom(6)),
-    unit("KiB", 1024n),
-    unit("MiB", 1024n**2n),
+const symbolByte = { symbol: "byte", plural: "bytes" } as const;
+export const Byte = kind(
+  "Byte",
+  [
+    ["SI", [
+      { symbols: [  symbolByte    ]          },
+      { symbols: [{ symbol: "kB" }], oom:  3 },
+      { symbols: [{ symbol: "MB" }], oom:  6 },
+      { symbols: [{ symbol: "GB" }], oom:  9 },
+      { symbols: [{ symbol: "TB" }], oom: 12 },
+    ]],
+    ["binary", [
+      { symbols: [  symbolByte     ], scale: 1024n**0n },
+      { symbols: [{ symbol: "KiB" }], scale: 1024n**1n },
+      { symbols: [{ symbol: "MiB" }], scale: 1024n**2n },
+      { symbols: [{ symbol: "GiB" }], scale: 1024n**3n },
+      { symbols: [{ symbol: "TiB" }], scale: 1024n**4n },
+    ]],
   ],
-} as const satisfies Kind;
+  { human: "byte", atomic: "byte" },
+);
 export type Byte = Amount<typeof Byte>;
 export const byte = Amount.ofKind(Byte);
 
-//for now, we don't make a distinction between usd and usdc
-const Usd = {
-  name: "Usd",
-  units: [unit("$", 1n), unit("¢", oom(-2))],
-  human:  "$",
-  atomic: "¢",
-  stringify: function (val: Rational) {
-    return val.ge(1)
-      ? `$${val.eq(val.floor()) ? val.toString() : val.toFixed(2)}`
-      : `${val.mul(100).toString()}¢`;
-  },
-} as const satisfies Kind;
+export const Usd = kind(
+  "Usd",
+  [ { symbols: [
+      { symbol: "$", spacing: "compact", position: "prefix" },
+      { symbol: "USD" },
+    ]},
+    { symbols: [
+      { symbol: "¢", spacing: "compact" },
+      { symbol: "c", spacing: "compact" },
+      { symbol: "cent", plural: "cents" },
+    ], oom: -2 },
+  ],
+  { human: "$", atomic: "¢" },
+);
 export type Usd = Amount<typeof Usd>;
 export const usd = Amount.ofKind(Usd);

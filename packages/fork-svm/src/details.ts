@@ -5,7 +5,10 @@ import type {
   Base64EncodedBytes,
   AccountInfoWithBase64EncodedData,
 } from "@solana/kit";
-import { getCompiledTransactionMessageDecoder } from "@solana/kit";
+import {
+  type ReadonlyUint8Array as KitReadonlyUint8Array,
+  getCompiledTransactionMessageDecoder
+} from "@solana/kit";
 import type { RoUint8Array, Mutable } from "@xlabs-xyz/const-utils";
 import { mapTo } from "@xlabs-xyz/const-utils";
 import { base64 } from "@xlabs-xyz/utils";
@@ -36,7 +39,7 @@ export const [builtInSet, sysvarSet, defProgSet] =
 
 const decompiledTransactionMessageDecoder = getCompiledTransactionMessageDecoder();
 export const decodeCompiledTransactionMessage = (bytes: RoUint8Array) =>
-  decompiledTransactionMessageDecoder.decode(bytes);
+  decompiledTransactionMessageDecoder.decode(bytes as KitReadonlyUint8Array);
 
 const mapNonNull =
   <P, R>(f: (_: P) => R) =>

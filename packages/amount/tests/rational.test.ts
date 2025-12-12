@@ -5,10 +5,10 @@ import { Rational } from "../src/rational.js";
 
 describe("Rational", () => {
   describe("from", () => {
-    it("creates a fresh instance from Rational", () => {
+    it("returns same instance for Rational input (immutable optimization)", () => {
       const r = Rational.from(5n, 1n);
       assert.deepStrictEqual(Rational.from(r).unwrap(), [5n, 1n]);
-      assert.notStrictEqual(Rational.from(r), r);
+      assert.strictEqual(Rational.from(r), r);
     });
 
     it("creates from bigint", () => {
@@ -40,20 +40,27 @@ describe("Rational", () => {
       );
     });
 
+    it("creates from fraction notation string", () => {
+      assert.deepStrictEqual(Rational.from("1/3").unwrap(), [1n, 3n]);
+      assert.deepStrictEqual(Rational.from("-1/3").unwrap(), [-1n, 3n]);
+      assert.deepStrictEqual(Rational.from("6/4").unwrap(), [3n, 2n]);
+      assert.deepStrictEqual(Rational.from("1,000/3").unwrap(), [1000n, 3n]);
+      assert.deepStrictEqual(Rational.from("1_000_000/1_000").unwrap(), [1000n, 1n]);
+      assert.throws(() => Rational.from("1/0"), /Denominator cannot be zero/);
+    });
+
     it("creates from decimal with default precision", () => {
       assert.deepStrictEqual(Rational.from(0.5).unwrap(), [1n, 2n]);
       assert.deepStrictEqual(Rational.from(-0.5).unwrap(), [-1n, 2n]);
-      assert.deepStrictEqual(Rational.from(0.3333333333333333).unwrap(),
-        [3333333333n, 10000000000n],
-      );
+      assert.deepStrictEqual(Rational.from(1/3).unwrap(), [1n, 3n]);
     });
 
     it("creates from decimal with custom precision", () => {
       assert.deepStrictEqual(Rational.from(0.5, 2).unwrap(), [1n, 2n]);
-      assert.deepStrictEqual(Rational.from(0.3333333333333333, 0).unwrap(), [0n, 1n]);
-      assert.deepStrictEqual(Rational.from(0.3333333333333333, 2).unwrap(), [33n, 100n]);
-      assert.deepStrictEqual(Rational.from(0.3333333333333333, 4).unwrap(), [3333n, 10000n]);
-      assert.deepStrictEqual(Rational.from(0.3333333333333333, 6).unwrap(), [333333n, 1000000n]);
+      assert.deepStrictEqual(Rational.from(1/3, 0).unwrap(), [0n, 1n]);
+      assert.deepStrictEqual(Rational.from(2/3, 0).unwrap(), [1n, 1n]);
+      assert.deepStrictEqual(Rational.from(1/3, 2).unwrap(), [1n, 3n]);
+      assert.deepStrictEqual(Rational.from(1/3, 4).unwrap(), [1n, 3n]);
     });
 
     it("normalizes fractions", () => {
@@ -90,10 +97,12 @@ describe("Rational", () => {
     it("sets and uses default precision", () => {
       const originalPrecision = (Rational as any).defaultPrecision;
       try {
+        //continued fractions find 1/3 regardless of precision (as long as denom 3 fits)
         Rational.setDefaultPrecision(4);
-        assert.deepStrictEqual(Rational.from(0.3333333333333333).unwrap(), [3333n, 10000n]);
-        Rational.setDefaultPrecision(6);
-        assert.deepStrictEqual(Rational.from(0.3333333333333333).unwrap(), [333333n, 1000000n]);
+        assert.deepStrictEqual(Rational.from(1/3).unwrap(), [1n, 3n]);
+        //with precision 0, only integers allowed, so 1/3 rounds to 0
+        Rational.setDefaultPrecision(0);
+        assert.deepStrictEqual(Rational.from(1/3).unwrap(), [0n, 1n]);
       } finally {
         Rational.setDefaultPrecision(originalPrecision);
       }
@@ -135,7 +144,7 @@ describe("Rational", () => {
 
     it("toFixed", () => {
       assert.strictEqual(half.toFixed(2), "0.50");
-      assert.strictEqual(half.toFixed(), "1"); // round(0.5) -> 1
+      assert.strictEqual(half.toFixed(), "1");
       assert.strictEqual(Rational.from( 1n, 3n).toFixed(2), "0.33");
       assert.strictEqual(Rational.from( 4n, 1n).toFixed(2), "4.00");
       assert.strictEqual(Rational.from(-1n, 4n).toFixed(2), "-0.25");

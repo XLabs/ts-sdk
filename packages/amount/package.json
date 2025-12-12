@@ -10,6 +10,7 @@
     "unit",
     "dimension",
     "rational",
+    "money",
     "currency",
     "precision"
   ],
@@ -37,5 +38,11 @@
     "build": "tsc",
     "test": "tsx --test tests/**/*.test.ts",
     "clean": "rm -rf ./dist"
+  },
+  "peerDependencies": {
+    "@xlabs-xyz/const-utils": "^4.0.1"
+  },
+  "devDependencies": {
+    "@xlabs-xyz/const-utils": "workspace:*"
   }
 }

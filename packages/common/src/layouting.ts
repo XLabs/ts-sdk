@@ -21,8 +21,7 @@ import type {
   KindWithAtomic,
   SymbolsOf,
 } from "@xlabs-xyz/amount";
-import { Amount, Conversion, Rational } from "@xlabs-xyz/amount";
-import type { DistributiveAmount } from "./units.js";
+import { type AmountFromArgs, Amount, Conversion, Rational } from "@xlabs-xyz/amount";
 
 export const hashItem = {
   binary: "bytes", size: 32,
@@ -116,7 +115,7 @@ type SizedReturnItem<S extends number, T> = {
 };
 
 type AmountReturnItem<S extends number, K extends Kind> =
-  SizedReturnItem<S, DistributiveAmount<K>>;
+  SizedReturnItem<S, Amount<K>>;
 //conversion happens in 3 stages:
 // 1. raw value is read from layout
 // 2. then it is optionally transformed (e.g. scaled/multiplied/etc.)
@@ -153,21 +152,21 @@ export function amountItem<S extends number, const K extends Kind>(
   if (typeof transform === "function")
     transform = transform(size);
 
-  const toFunc = (val: Rationalish): DistributiveAmount<K> =>
-    Amount.from(val, kind, unitSymbol) as DistributiveAmount<K>;
+  const toFunc = (val: Rationalish): Amount<K> =>
+    Amount.from(val, ...[kind, unitSymbol] as AmountFromArgs<K>);
 
   const custom = transform === undefined
     ? {
       to: (val: NumericType<S>) =>
         toFunc(val),
-      from: (amount: DistributiveAmount<K>): NumericType<S> =>
-        numericReturn(size)(amount.toUnit(unitSymbol) as Rational),
+      from: (amount: Amount<K>): NumericType<S> =>
+        numericReturn(size)(amount.in(unitSymbol) as Rational),
     }
     : {
       to: (val: NumericType<S>) =>
         toFunc(transform.to(val)),
-      from: (amount: DistributiveAmount<K>): NumericType<S> =>
-        transform.from(amount.toUnit(unitSymbol) as Rational),
+      from: (amount: Amount<K>): NumericType<S> =>
+        transform.from(amount.in(unitSymbol) as Rational),
     };
 
   return { binary: "uint", size, custom };
@@ -249,7 +248,7 @@ export function conversionItem(
       Conversion.from(Amount.from(val, numKind, numUnit), denAmnt);
 
     const fromFunc = (conv: Conversion<Kind, Kind>): Rational =>
-      denAmnt.convert(conv).toUnit(numUnit);
+      denAmnt.div(conv).in(numUnit);
 
     const custom = typeof transform === "object"
       ? {
@@ -277,7 +276,7 @@ export function conversionItem(
     to: (val: NumericType<number>): Conversion<Kind, Kind> =>
       Conversion.from(amntItem.custom.to(val), denAmnt),
     from: (conv: Conversion<Kind, Kind>): NumericType<number> =>
-      amntItem.custom.from(denAmnt.convert(conv)),
+      amntItem.custom.from(denAmnt.div(conv)),
   };
 
   return { ...amntItem, custom };
