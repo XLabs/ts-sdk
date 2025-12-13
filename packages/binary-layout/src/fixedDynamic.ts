@@ -84,13 +84,14 @@ type FilterItem<II extends Item, Fixed extends boolean> =
   : never;
 
 type FilterItemsOf<L extends Layout, Fixed extends boolean> =
-  L extends infer LI extends Item
+  Layout extends L
+  ? Layout
+  : L extends infer LI extends Item
   ? FilterItem<LI, Fixed>
   : L extends infer P extends ProperLayout
   ? P extends readonly [infer H extends Item, ...infer T extends ProperLayout]
     ? FilterItem<H, Fixed> extends infer NI
       ? NI extends Item
-        // @ts-ignore TODO: figure out and fix this
         ? [NI, ...FilterItemsOf<T, Fixed>]
         : FilterItemsOf<T, Fixed>
       : never
@@ -104,7 +105,7 @@ type StartFilterItemsOf<L extends Layout, Fixed extends boolean> =
 
 function filterItem(item: Item, fixed: boolean): Item | null {
   switch (item.binary) {
-    // @ts-ignore - fallthrough is intentional
+    //fallthrough is intentional
     case "bytes": {
       if (bytesItemHasLayout(item)) {
         const { custom } = item;
@@ -171,7 +172,7 @@ function filterItemsOf<L extends Layout, const Fixed extends boolean>(
 
 function internalAddFixedValuesItem(item: Item, dynamicValue: any): any {
   switch (item.binary) {
-    // @ts-ignore - fallthrough is intentional
+    //fallthrough is intentional
     case "bytes": {
       if (bytesItemHasLayout(item)) {
         const { custom } = item;
