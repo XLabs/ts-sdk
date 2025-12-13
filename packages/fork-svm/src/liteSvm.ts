@@ -38,6 +38,7 @@ export {
   TransactionReturnData,
 } from "./liteSvm/internal.js";
 
+import type { RoUint8Array, Mutable, Simplify } from "@xlabs-xyz/const-utils";
 import type { Address, Transaction, AccountInfoBase } from "@solana/kit";
 import { getTransactionEncoder, getAddressEncoder, getAddressDecoder } from "@solana/kit";
 
@@ -46,8 +47,16 @@ const encodeAddress = (address: Address) => addressEncoder.encode(address) as Ui
 const addressDecoder = getAddressDecoder();
 const decodeAddress = (address: Uint8Array) => addressDecoder.decode(address);
 
-export type AccountInfo =
-  Omit<AccountInfoBase, "lamports"> & { lamports: bigint; data: Uint8Array };
+type AccountInfoImpl<R extends boolean = false> =
+  (Simplify<Mutable<Omit<AccountInfoBase, "lamports">> &
+  { lamports: bigint; data: R extends true ? RoUint8Array : Uint8Array }>) extends infer T
+  ? R extends true
+    ? Readonly<T>
+    : T
+  : never;
+
+export type AccountInfo = AccountInfoImpl<false>;
+export type RoAccountInfo = AccountInfoImpl<true>;
 
 function toAccountInfo(acc: Account): AccountInfo {
   return {
@@ -59,10 +68,10 @@ function toAccountInfo(acc: Account): AccountInfo {
   };
 }
 
-function fromAccountInfo(acc: AccountInfo): Account {
+function fromAccountInfo(acc: RoAccountInfo): Account {
   return new Account(
     acc.lamports,
-    acc.data,
+    acc.data as Uint8Array,
     encodeAddress(acc.owner),
     acc.executable,
     0n,
@@ -248,7 +257,7 @@ export class LiteSVM {
    * @param address - The address to write to.
    * @param account - The account object to write.
    */
-  setAccount(address: Address, account: AccountInfo) {
+  setAccount(address: Address, account: RoAccountInfo) {
     this.inner.setAccount(encodeAddress(address), fromAccountInfo(account));
   }
 

@@ -1,17 +1,17 @@
 import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import type { Address } from "@solana/kit";
 import { base64, stringifyWithBigints, parseWithBigints } from "@xlabs-xyz/utils";
-import type { MaybeSvmAccInfo } from "./details.js";
+import type { SvmAccountInfo, RoSvmAccountInfo } from "./details.js";
 import type { Snapshot } from "./forkSvm.js";
 
-const parseJsonAccInfo = (json: string): MaybeSvmAccInfo => {
+const parseJsonAccInfo = (json: string): SvmAccountInfo | null => {
   const base64AccOrNull: any = parseWithBigints(json);
   if (base64AccOrNull?.data)
     base64AccOrNull.data = base64.decode(base64AccOrNull.data);
-  return base64AccOrNull as MaybeSvmAccInfo;
+  return base64AccOrNull;
 };
 
-const stringifyJsonAccInfo = (acc: MaybeSvmAccInfo): string =>
+const stringifyJsonAccInfo = (acc: RoSvmAccountInfo | null): string =>
   stringifyWithBigints(acc ? { ...acc, data: base64.encode(acc.data) } : null);
 
 const toPaths = (filepath: string) => {

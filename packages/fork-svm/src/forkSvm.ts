@@ -15,7 +15,7 @@ import {
   getTransactionDecoder,
 } from "@solana/kit";
 import { isJsonRpcPayload } from "@solana/rpc-spec";
-import type { RoArray, MaybeArray, Function } from "@xlabs-xyz/const-utils";
+import type { RoArray, RoUint8Array, MaybeArray, Function } from "@xlabs-xyz/const-utils";
 import { zip, mapTo, isArray, omit } from "@xlabs-xyz/const-utils";
 import { base58, base64, definedOrThrow } from "@xlabs-xyz/utils";
 import { deserialize } from "@xlabs-xyz/binary-layout";
@@ -34,7 +34,7 @@ import {
   TransactionMetadata,
   FailedTransactionMetadata,
 } from "./liteSvm.js";
-import type { MaybeSvmAccInfo } from "./details.js";
+import type { SvmAccountInfo, RoSvmAccountInfo } from "./details.js";
 import {
   builtInSet,
   sysvarSet,
@@ -58,19 +58,19 @@ export type Settings = {
   withBuiltins:        boolean;
 };
 
-export type Clock = Readonly<{
+export type Clock = {
   timestamp:           Date;
   slot:                bigint;
   epoch:               bigint;
   epochStartTimestamp: bigint;
   leaderScheduleEpoch: bigint;
-}>;
+};
 
-export type Snapshot = Readonly<{
-  settings: Readonly<Settings>;
-  accounts: Readonly<Record<Address, MaybeSvmAccInfo>>;
+export type Snapshot = {
+  settings: Settings;
+  accounts: Record<Address, SvmAccountInfo | null>;
   clock:    Clock;
-}>;
+};
 
 export class ForkSvm {
   private settings: Settings;
@@ -144,7 +144,7 @@ export class ForkSvm {
       this.liteSvm.setAccount(addr, emptyAccountInfo);
 
     this.addresses.known = new Set();
-    const executables = [] as [Address, MaybeSvmAccInfo][];
+    const executables = [] as [Address, SvmAccountInfo | null][];
     for (const [addr, acc] of Object.entries(snapshot.accounts))
       if (acc && acc.executable)
         executables.push([addr as Address, acc]);
@@ -175,8 +175,8 @@ export class ForkSvm {
   latestSlot = () =>
     this.liteSvm.getClock().slot;
 
-  getTransaction = (signature: Uint8Array) =>
-    this.liteSvm.getTransaction(signature);
+  getTransaction = (signature: RoUint8Array) =>
+    this.liteSvm.getTransaction(signature as Uint8Array);
 
   latestBlockhash = () =>
     this.liteSvm.latestBlockhash();
@@ -238,9 +238,9 @@ export class ForkSvm {
     this.liteSvm.airdrop(address, lamports);
   }
 
-  addProgram(programId: Address, programBytes: Uint8Array): void {
+  addProgram(programId: Address, programBytes: RoUint8Array): void {
     this.addresses.known.add(programId);
-    this.liteSvm.addProgram(programId, programBytes);
+    this.liteSvm.addProgram(programId, programBytes as Uint8Array);
   }
 
   addProgramFromFile = (programId: Address, path: string): void => {
@@ -248,16 +248,18 @@ export class ForkSvm {
     this.liteSvm.addProgramFromFile(programId, path);
   };
 
-  setAccount(address: Address, acc: MaybeSvmAccInfo): void {
+  setAccount(address: Address, acc: RoSvmAccountInfo | null): void {
     this.addresses.known.add(address);
-    if (acc && acc.owner !== systemProgramId) {
-      if (acc.space < acc.data.length)
-        acc.space = BigInt(acc.data.length);
+    const _acc = acc ? { ...acc } : null;
+    if (_acc && _acc.owner !== systemProgramId) {
+      if (_acc.space < _acc.data.length)
+        _acc.space = BigInt(_acc.data.length);
 
-      if (acc.lamports < minimumBalanceForRentExemption(Number(acc.space)))
-        acc.lamports = minimumBalanceForRentExemption(Number(acc.space));
+      const rentExempt = minimumBalanceForRentExemption(Number(_acc.space));
+      if (_acc.lamports < rentExempt)
+        _acc.lamports = rentExempt;
     }
-    this.liteSvm.setAccount(address, acc ?? emptyAccountInfo);
+    this.liteSvm.setAccount(address, _acc ?? emptyAccountInfo);
   }
 
   createForkRpc() {
@@ -564,7 +566,7 @@ export class ForkSvm {
       this.setAccount(addr, acc);
   }
 
-  private async fetchFromUpstream(addresses: readonly Address[]): Promise<MaybeSvmAccInfo[]> {
+  private async fetchFromUpstream(addresses: RoArray<Address>): Promise<(SvmAccountInfo | null)[]> {
     if (addresses.length === 0)
       return [];
 

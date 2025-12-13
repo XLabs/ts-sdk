@@ -1,5 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import type { Address, Lamports, Signature, Blockhash } from "@solana/kit";
+import { serialize } from "@xlabs-xyz/binary-layout";
 import {
   address,
   createTransactionMessage,
@@ -9,19 +11,22 @@ import {
   compileTransaction,
   getBase64EncodedWireTransaction,
   generateKeyPair,
+  generateKeyPairSigner,
   getAddressFromPublicKey,
 } from "@solana/kit";
 import { base58 } from "@xlabs-xyz/utils";
+import { Amount, kind } from "@xlabs-xyz/amount";
+import { Sol, sol } from "@xlabs-xyz/common";
 import {
   tokenProgramId,
+  systemProgramId,
   mintAccountLayout,
   tokenAccountLayout,
   findAta,
+  nativeMint,
 } from "@xlabs-xyz/svm";
-import type { Lamports } from "@solana/kit";
-import { serialize } from "@xlabs-xyz/binary-layout";
 import { ForkSvm } from "../src/forkSvm.js";
-import type { Address, Signature, Blockhash } from "@solana/kit";
+import { assertTxSuccess, createCurried } from "../src/utils.js";
 
 // Helper to create a test account
 const createTestAccount = (lamports: bigint, data: Uint8Array, owner: Address) => ({
@@ -36,8 +41,8 @@ const createTestAccount = (lamports: bigint, data: Uint8Array, owner: Address) =
 const createMintAccount = (mintAuthority: Address, supply = 0n) => {
   const layout = mintAccountLayout();
   const data = serialize(layout, {
-    mintAuthority, // cOptionItem custom property transforms Address | undefined
-    supply: supply as Lamports,
+    mintAuthority,
+    supply,
     decimals: 9,
     isInitialized: true,
     freezeAuthority: undefined, // cOptionItem custom property transforms undefined
@@ -62,36 +67,40 @@ const createTokenAccount = (mint: Address, owner: Address, amount: bigint) => {
 };
 
 // Helper to create a signed transaction (without sending)
-const createSignedTransaction = async (forkSvm: ForkSvm, payer: Address, keypair: CryptoKeyPair) => {
-  const blockhashStr = forkSvm.latestBlockhash();
-  const slot = forkSvm.latestSlot();
-  const blockhash = { blockhash: blockhashStr as Blockhash, lastValidBlockHeight: slot };
-  const message = createTransactionMessage({ version: "legacy" });
-  const messageWithPayer = setTransactionMessageFeePayer(payer, message);
-  const messageWithLifetime = setTransactionMessageLifetimeUsingBlockhash(blockhash, messageWithPayer);
-  const compiled = compileTransaction(messageWithLifetime);
-  return await signTransaction([keypair], compiled);
-};
+const createSignedTransaction =
+  async (forkSvm: ForkSvm, payer: Address, keypair: CryptoKeyPair) => {
+    const blockhashStr = forkSvm.latestBlockhash();
+    const slot = forkSvm.latestSlot();
+    const blockhash = { blockhash: blockhashStr as Blockhash, lastValidBlockHeight: slot };
+    const message = createTransactionMessage({ version: "legacy" });
+    const messageWithPayer = setTransactionMessageFeePayer(payer, message);
+    const messageWithLifetime = setTransactionMessageLifetimeUsingBlockhash(blockhash, messageWithPayer);
+    const compiled = compileTransaction(messageWithLifetime);
+    return await signTransaction([keypair], compiled);
+  };
 
 // Helper to create a transaction and get its signature
-const createAndSendTransaction = async (forkSvm: ForkSvm, payer: Address, keypair: CryptoKeyPair) => {
-  const signed = await createSignedTransaction(forkSvm, payer, keypair);
-  const tx = await forkSvm.sendTransaction(signed);
-  return { tx, meta: tx, signature: base58.encode(tx.signature()) as Signature };
-};
+const createAndSendTransaction =
+  async (forkSvm: ForkSvm, payer: Address, keypair: CryptoKeyPair) => {
+    const signed = await createSignedTransaction(forkSvm, payer, keypair);
+    const tx = await forkSvm.sendTransaction(signed);
+    return { tx, meta: tx, signature: base58.encode(tx.signature()) as Signature };
+  };
 
 // Helper to create a base64-encoded wire transaction for RPC calls
-const createWireTransaction = async (forkSvm: ForkSvm, payer: Address, keypair: CryptoKeyPair) => {
-  const signed = await createSignedTransaction(forkSvm, payer, keypair);
-  return getBase64EncodedWireTransaction(signed);
-};
+const createWireTransaction =
+  async (forkSvm: ForkSvm, payer: Address, keypair: CryptoKeyPair) => {
+    const signed = await createSignedTransaction(forkSvm, payer, keypair);
+    return getBase64EncodedWireTransaction(signed);
+  };
 
 // Helper to setup token accounts
-const setupTokenAccounts = async (forkSvm: ForkSvm, payer: Address, mint: Address, tokenAccount: Address, amount: bigint) => {
-  await forkSvm.airdrop(payer, 1000000n);
-  forkSvm.setAccount(mint, createMintAccount(payer));
-  forkSvm.setAccount(tokenAccount, createTokenAccount(mint, payer, amount));
-};
+const setupTokenAccounts =
+  async (forkSvm: ForkSvm, payer: Address, mint: Address, tokenAccount: Address, amount: bigint) => {
+    await forkSvm.airdrop(payer, 1000000n);
+    forkSvm.setAccount(mint, createMintAccount(payer));
+    forkSvm.setAccount(tokenAccount, createTokenAccount(mint, payer, amount));
+  };
 
 // Helper to test unavailable field access
 const testUnavailableField = (
@@ -128,13 +137,13 @@ describe("ForkSvm", () => {
   let payerKeypair: CryptoKeyPair;
   let mint: Address;
   let tokenAccount: Address;
-  const nonExistentAddress = address("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM") as Address;
+  const nonExistentAddress = address("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM");
 
   beforeEach(async () => {
     forkSvm = new ForkSvm();
     payerKeypair = await generateKeyPair();
     payer = await getAddressFromPublicKey(payerKeypair.publicKey);
-    mint = address("mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So") as Address; // SOL mint
+    mint = address("mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So");
     tokenAccount = findAta({ owner: payer, mint });
   });
 
@@ -272,7 +281,8 @@ describe("ForkSvm", () => {
       });
 
       it("should return null for non-existent account", async () => {
-        const accountInfo = await rpc.getAccountInfo(nonExistentAddress, { encoding: "base64" }).send();
+        const accountInfo =
+          await rpc.getAccountInfo(nonExistentAddress, { encoding: "base64" }).send();
         assert.strictEqual(accountInfo.value, null);
       });
 
@@ -293,7 +303,8 @@ describe("ForkSvm", () => {
         await forkSvm.airdrop(payer, 1000n);
         await forkSvm.airdrop(payer2, 2000n);
 
-        const accounts = await rpc.getMultipleAccounts([payer, payer2], { encoding: "base64" }).send();
+        const accounts =
+          await rpc.getMultipleAccounts([payer, payer2], { encoding: "base64" }).send();
 
         assert.strictEqual(accounts.value.length, 2);
         assert(accounts.value[0]);
@@ -469,6 +480,252 @@ describe("ForkSvm", () => {
           /Unsupported encoding: base58, expected "base64"/
         );
       });
+    });
+  });
+});
+
+const TestToken = kind(
+  "TestToken",
+  [ { symbols: [{ symbol: "TOK"  }] },
+    { symbols: [{ symbol: "µTOK" }], oom:  -6 } ],
+  { human: "TOK", atomic: "µTOK" },
+);
+
+describe("forkSvm utils", () => {
+  let forkSvm: ForkSvm;
+  let mint: Address;
+  let curried: ReturnType<typeof createCurried>;
+
+  beforeEach(async () => {
+    forkSvm = new ForkSvm();
+    mint = (await generateKeyPairSigner()).address;
+    curried = createCurried(forkSvm);
+  });
+
+  describe("assertTxSuccess", () => {
+    it("should return metadata on success", async () => {
+      const signer = await generateKeyPairSigner();
+      await forkSvm.airdrop(signer.address, 10n ** 9n);
+
+      const metadata = await assertTxSuccess(
+        curried.createAndSendTx([], signer)
+      );
+
+      assert(metadata);
+      assert(typeof metadata.computeUnitsConsumed === "function");
+    });
+
+    it("should throw FailedTransactionMetadata on failure", async () => {
+      const signer = await generateKeyPairSigner();
+      // No airdrop - transaction will fail due to insufficient funds for fee
+
+      await assert.rejects(
+        assertTxSuccess(curried.createAndSendTx([], signer)),
+        (err: Error) => err.message.includes("tx should succeed but failed")
+      );
+    });
+  });
+
+  describe("createCurried without solKind", () => {
+    it("should create accounts with bigint lamports", async () => {
+      const { address: addr } = await generateKeyPairSigner();
+
+      curried.createAccount(
+        addr,
+        new Uint8Array(0),
+        systemProgramId,
+        1_000_000n as Lamports
+      );
+
+      const account = await forkSvm.getAccount(addr);
+      assert(account);
+      assert.strictEqual(account.lamports, 1_000_000n);
+    });
+
+    it("should get balance as bigint", async () => {
+      const { address: addr } = await generateKeyPairSigner();
+      await forkSvm.airdrop(addr, 5_000_000n);
+
+      const balance = await curried.getBalance(addr);
+
+      assert.strictEqual(balance, 5_000_000n);
+    });
+
+    it("should return 0n for non-existent account balance", async () => {
+      const { address: addr } = await generateKeyPairSigner();
+
+      const balance = await curried.getBalance(addr);
+      assert.strictEqual(balance, 0n);
+    });
+
+    it("should create and send transactions", async () => {
+      const signer = await generateKeyPairSigner();
+      await forkSvm.airdrop(signer.address, 10n ** 9n);
+
+      const metadata = await curried.createAndSendTx([], signer);
+
+      assert(metadata);
+      const logs = metadata.logs();
+      assert(Array.isArray(logs));
+    });
+  });
+
+  describe("createCurried with solKind (Amount support)", () => {
+    it("should create accounts with Amount lamports", async () => {
+      const { address: addr } = await generateKeyPairSigner();
+      const curried = createCurried(forkSvm, Sol);
+
+      curried.createAccount(
+        addr,
+        new Uint8Array(0),
+        systemProgramId,
+        sol(1),
+      );
+
+      const account = await forkSvm.getAccount(addr);
+      assert(account);
+      assert.strictEqual(account.lamports, 10n ** 9n);
+    });
+
+    it("should get balance as Amount when kind is passed", async () => {
+      const { address: addr } = await generateKeyPairSigner();
+      await forkSvm.airdrop(addr, 10n ** 9n);
+
+      const curried = createCurried(forkSvm, Sol);
+      const balance = await curried.getBalance(addr);
+
+      assert(balance instanceof Amount);
+      assert.strictEqual(balance.in("atomic"), 10n ** 9n);
+    });
+
+    it("should return zero Amount for non-existent account when solKind provided", async () => {
+      const { address: addr } = await generateKeyPairSigner();
+      const curried = createCurried(forkSvm, Sol);
+      const balance = await curried.getBalance(addr);
+
+      assert(balance instanceof Amount);
+      assert.strictEqual(balance.in("atomic"), 0n);
+    });
+  });
+
+  describe("createAta", () => {
+    it("should create ATA with bigint balance", async () => {
+      const { address: owner } = await generateKeyPairSigner();
+      forkSvm.setAccount(mint, createMintAccount(owner));
+
+      const ata = curried.createAta(owner, mint, 1000n);
+
+      const account = await forkSvm.getAccount(ata);
+      assert(account);
+      assert.strictEqual(account.owner, tokenProgramId);
+    });
+
+    it("should create native SOL ATA with rent + balance", async () => {
+      const { address: owner } = await generateKeyPairSigner();
+      forkSvm.setAccount(nativeMint, createMintAccount(owner));
+
+      const tokenBalance = 500_000n;
+      const ata = curried.createAta(owner, nativeMint, tokenBalance);
+
+      const account = await forkSvm.getAccount(ata);
+      assert(account);
+      // Native SOL ATAs have lamports = rent + token balance
+      assert(account.lamports > tokenBalance);
+    });
+  });
+
+  describe("getTokenBalance", () => {
+    it("should get token balance as bigint", async () => {
+      const { address: owner } = await generateKeyPairSigner();
+      forkSvm.setAccount(mint, createMintAccount(owner));
+
+      const tokenAmount = 42_000_000n;
+      const ata = curried.createAta(owner, mint, tokenAmount);
+
+      const balance = await curried.getTokenBalance()(ata);
+      assert.strictEqual(balance, tokenAmount);
+    });
+
+    it("should get token balance as Amount with kind", async () => {
+      const { address: owner } = await generateKeyPairSigner();
+      forkSvm.setAccount(mint, createMintAccount(owner));
+
+      const atomicAmount = 42_000_000n;
+      const ata = curried.createAta(owner, mint, atomicAmount);
+
+      const balance = await curried.getTokenBalance(TestToken)(ata);
+
+      assert(balance instanceof Amount);
+      assert.strictEqual(balance.in("atomic"), atomicAmount);
+    });
+
+    it("should return 0 for non-existent token account", async () => {
+      const { address: addr } = await generateKeyPairSigner();
+
+      const balance = await curried.getTokenBalance()(addr);
+      assert.strictEqual(balance, 0n);
+    });
+  });
+
+  describe("createTx and sendTx", () => {
+    it("should create transaction with fee payer address", async () => {
+      const signer = await generateKeyPairSigner();
+      const addr = signer.address;
+      await forkSvm.airdrop(addr, 10n ** 9n);
+
+      const tx = await curried.createTx([], addr);
+
+      assert(tx);
+      assert.strictEqual(tx.feePayer.address, addr);
+    });
+
+    it("should create transaction with KeyPairSigner", async () => {
+      const signer = await generateKeyPairSigner();
+      await forkSvm.airdrop(signer.address, 10n ** 9n);
+
+      const tx = await curried.createTx([], signer);
+
+      assert(tx);
+      assert.strictEqual(tx.feePayer.address, signer.address);
+    });
+
+    it("should send transaction and return metadata", async () => {
+      const signer = await generateKeyPairSigner();
+      await forkSvm.airdrop(signer.address, 10n ** 9n);
+
+      const tx = await curried.createTx([], signer);
+      const metadata = await curried.sendTx(tx, signer);
+
+      assert(metadata);
+      assert(typeof metadata.signature === "function");
+    });
+  });
+
+  describe("getMint and getTokenAccount", () => {
+    it("should get mint account", async () => {
+      const { address: owner } = await generateKeyPairSigner();
+      forkSvm.setAccount(mint, createMintAccount(owner, 1_000_000n));
+
+      const mintData = await curried.getMint()(mint);
+
+      assert(mintData);
+      assert.strictEqual(mintData.mintAuthority, owner);
+      assert.strictEqual(mintData.supply, 1_000_000n as Lamports);
+      assert.strictEqual(mintData.decimals, 9);
+    });
+
+    it("should get token account", async () => {
+      const { address: owner } = await generateKeyPairSigner();
+      forkSvm.setAccount(mint, createMintAccount(owner));
+
+      const ata = curried.createAta(owner, mint, 500n);
+
+      const tokenAccount = await curried.getTokenAccount()(ata);
+
+      assert(tokenAccount);
+      assert.strictEqual(tokenAccount.mint, mint);
+      assert.strictEqual(tokenAccount.owner, owner);
+      assert.strictEqual(tokenAccount.amount, 500n as Lamports);
     });
   });
 });

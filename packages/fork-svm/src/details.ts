@@ -4,12 +4,10 @@ import type {
   AccountInfoBase,
   Base64EncodedBytes,
   AccountInfoWithBase64EncodedData,
+  ReadonlyUint8Array as KitReadonlyUint8Array, //TODO remove if kit fixes their type
 } from "@solana/kit";
-import {
-  type ReadonlyUint8Array as KitReadonlyUint8Array,
-  getCompiledTransactionMessageDecoder
-} from "@solana/kit";
-import type { RoUint8Array, Mutable } from "@xlabs-xyz/const-utils";
+import { getCompiledTransactionMessageDecoder } from "@solana/kit";
+import type { RoUint8Array } from "@xlabs-xyz/const-utils";
 import { mapTo } from "@xlabs-xyz/const-utils";
 import { base64 } from "@xlabs-xyz/utils";
 import {
@@ -18,13 +16,13 @@ import {
   sysvarIds,
   defaultProgramIds,
 } from "@xlabs-xyz/svm";
-import type { AccountInfo as SvmAccountInfo } from "./liteSvm.js";
+import type {
+  AccountInfo as SvmAccountInfo,
+  RoAccountInfo as RoSvmAccountInfo,
+} from "./liteSvm.js";
 
 export type KitAccountInfo = AccountInfoBase & AccountInfoWithBase64EncodedData;
-export { type SvmAccountInfo };
-
-export type MaybeKitAccInfo = Mutable<KitAccountInfo> | null;
-export type MaybeSvmAccInfo = Mutable<SvmAccountInfo> | null;
+export { type SvmAccountInfo, type RoSvmAccountInfo };
 
 export const emptyAccountInfo = {
   executable: false,
@@ -32,7 +30,7 @@ export const emptyAccountInfo = {
   lamports:   0n,
   space:      0n,
   data:       new Uint8Array(),
-} as const satisfies SvmAccountInfo;
+} as const satisfies RoSvmAccountInfo;
 
 export const [builtInSet, sysvarSet, defProgSet] =
   mapTo([builtInProgramIds, sysvarIds, defaultProgramIds])(pids => new Set<Address>(pids));
@@ -47,19 +45,19 @@ const mapNonNull =
       arg === null ? null : f(arg);
 
 export const liteSvmAccountToKitAccount =
-  mapNonNull((acc: SvmAccountInfo): KitAccountInfo => ({
+  mapNonNull((acc: RoSvmAccountInfo): KitAccountInfo => ({
     executable: acc.executable,
-    lamports: acc.lamports as Lamports,
-    owner: acc.owner,
-    data: [base64.encode(acc.data) as Base64EncodedBytes, "base64"],
-    space: acc.space,
+    lamports:   acc.lamports as Lamports,
+    owner:      acc.owner,
+    data:       [base64.encode(acc.data) as Base64EncodedBytes, "base64"],
+    space:      acc.space,
   }));
 
 export const kitAccountToLiteSvmAccount =
   mapNonNull((acc: KitAccountInfo): SvmAccountInfo => ({
     executable: acc.executable,
-    lamports: acc.lamports,
-    owner: acc.owner,
-    data: base64.decode(acc.data[0]) as Uint8Array,
-    space: acc.space,
+    lamports:   acc.lamports,
+    owner:      acc.owner,
+    data:       base64.decode(acc.data[0]),
+    space:      acc.space,
   }));

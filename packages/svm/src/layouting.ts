@@ -1,11 +1,6 @@
 import { Address, Lamports } from "@solana/kit";
-import {
-  type RoUint8Array,
-  valueIndexEntries,
-  isArray,
-  omit,
-  assertType,
-} from "@xlabs-xyz/const-utils";
+import type { RoArray, RoUint8Array } from "@xlabs-xyz/const-utils";
+import { valueIndexEntries, isArray, omit, assertType } from "@xlabs-xyz/const-utils";
 import type {
   NumberSize,
   CustomizableBytes,
@@ -58,11 +53,11 @@ export const svmAmountItem = <
   const K extends KindWithAtomic | undefined = undefined,
   S extends number = 8
 >(kind?: K, size?: S):
-    K extends KindWithAtomic ? ReturnType<typeof amountItem<S, K>> : typeof kitLamportsItem =>
-      (kind ? littleEndian(amountItem(size ?? 8, kind)) : u64Item) as any;
+      K extends KindWithAtomic ? ReturnType<typeof amountItem<S, K>> : typeof u64Item =>
+    (kind ? littleEndian(amountItem(size ?? 8, kind)) : u64Item) as any;
 
 export const lamportsItem = <const K extends KindWithAtomic | undefined = undefined>(kind?: K):
-  K extends KindWithAtomic ? ReturnType<typeof svmAmountItem<K>> : typeof kitLamportsItem =>
+    K extends KindWithAtomic ? ReturnType<typeof svmAmountItem<K>> : typeof kitLamportsItem =>
   (kind ? svmAmountItem(kind) : kitLamportsItem) as any;
 
 export const vecBytesItem = <const P extends CustomizableBytes>(spec?: P) =>
@@ -126,7 +121,7 @@ export const eventLayout =
   <const L extends Layout>(name: string, layout: L) =>
     discriminatedLayout("event", name, layout);
 
-export const cEnumItem = <const E extends readonly string[]>(names: E, size: NumberSize = 1) =>
+export const cEnumItem = <const E extends RoArray<string>>(names: E, size: NumberSize = 1) =>
   enumItem(valueIndexEntries(names), { size, endianness: "little" });
 
 // named after https://docs.rs/solana-program-option/latest/solana_program_option/enum.COption.html
@@ -165,13 +160,18 @@ export const cOoptionLamportsItem =
       size
     );
 
-export const mintAccountLayout = <K extends KindWithAtomic | undefined = undefined>(kind?: K) => [
+const _mintAccountLayout = <const K extends KindWithAtomic | undefined = undefined>(kind?: K) => [
   { name: "mintAuthority",   ...cOptionAddressItem() },
-  { name: "supply",          ...lamportsItem(kind)   },
+  { name: "supply",          ...svmAmountItem(kind)  },
   { name: "decimals",        binary: "uint", size: 1 },
   { name: "isInitialized",   ...boolItem()           },
   { name: "freezeAuthority", ...cOptionAddressItem() },
 ] as const;
+
+export const mintAccountLayout =
+  <const K extends KindWithAtomic | undefined = undefined>(kind?: K):
+    ReturnType<typeof _mintAccountLayout<K>> extends infer L extends ProperLayout ? L : never =>
+      _mintAccountLayout(kind) as any;
 
 export type MintAccount<K extends KindWithAtomic | undefined = undefined> =
   DeriveType<ReturnType<typeof mintAccountLayout<K>>>;
@@ -181,7 +181,7 @@ export type MintAccount<K extends KindWithAtomic | undefined = undefined> =
 export const initStates = ["Uninitialized", "Initialized"] as const;
 
 export const tokenStates = [...initStates, "Frozen"] as const;
-export const tokenAccountLayout = <
+const _tokenAccountLayout = <
   const KT extends KindWithAtomic | undefined = undefined,
   const KS extends KindWithAtomic | undefined = undefined,
 >(tokenKind?: KT, solKind?: KS) => [
@@ -194,6 +194,13 @@ export const tokenAccountLayout = <
   { name: "delegatedAmount", ...svmAmountItem(tokenKind)      },
   { name: "closeAuthority",  ...cOptionAddressItem()          },
 ] as const;
+
+export const tokenAccountLayout = <
+  const KT extends KindWithAtomic | undefined = undefined,
+  const KS extends KindWithAtomic | undefined = undefined,
+>(tokenKind?: KT, solKind?: KS):
+  ReturnType<typeof _tokenAccountLayout<KT, KS>> extends infer L extends ProperLayout ? L : never =>
+    _tokenAccountLayout(tokenKind, solKind) as any;
 
 export type TokenAccount<
   KT extends KindWithAtomic | undefined = undefined,

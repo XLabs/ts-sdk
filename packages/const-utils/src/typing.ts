@@ -107,30 +107,36 @@ export const assertType =
     <const V>(val: V): V extends T ? V : never =>
       val as any;
 
-export type DeepReadonly<T> =
-  IsAny<T> extends true //prevent DeepReadonly<any> from giving type instantiation too deep error
+export type Ro<T> =
+  T extends RoUint8Array<infer TArrayBuffer>
+  ? RoUint8Array<TArrayBuffer>
+  : Readonly<T>;
+
+export const ro = <const T>(value: T): Ro<T> => value as Ro<T>;
+
+export type DeepRo<T> =
+  IsAny<T> extends true //prevent DeepRo<any> from giving type instantiation too deep error
   ? any
-  : T extends RoTuple
-  ? T extends HeadTail<T, infer Head, infer Tail>
-    ? readonly [DeepReadonly<Head>, ...DeepReadonly<Tail>]
-    : readonly []
+  : T extends RoUint8Array<infer TArrayBuffer>
+  ? RoUint8Array<TArrayBuffer>
   : T extends object
-  ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+  ? { readonly [K in keyof T]: DeepRo<T[K]> }
   : T;
 
-export const deepReadonly = <const T>(value: T): DeepReadonly<T> => value as DeepReadonly<T>;
+export const deepRo = <const T>(value: T): DeepRo<T> => value as DeepRo<T>;
 
-export type Mutable<T> = { -readonly [P in keyof T]: T[P] };
+export type Mutable<T> =
+  T extends RoUint8Array<infer TArrayBuffer>
+  ? Uint8Array<TArrayBuffer>
+  : { -readonly [P in keyof T]: T[P] };
 
 export const mutable = <const T>(value: T): Mutable<T> => value as Mutable<T>;
 
 export type DeepMutable<T> =
   IsAny<T> extends true
   ? any
-  : T extends RoTuple
-  ? T extends HeadTail<T, infer Head, infer Tail>
-    ? [DeepMutable<Head>, ...DeepMutable<Tail>]
-    : []
+  : T extends RoUint8Array<infer TArrayBuffer>
+  ? Uint8Array<TArrayBuffer>
   : T extends object
   ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
   : T;
