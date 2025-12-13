@@ -14,9 +14,7 @@ describe("isUint8Array", () => {
     assert(!isUint8Array({}));
     assert(!isUint8Array("string"));
     assert(!isUint8Array(123));
-    // eslint-disable-next-line unicorn/no-null
     assert(!isUint8Array(null));
-    // eslint-disable-next-line unicorn/no-useless-undefined
     assert(!isUint8Array(undefined));
   });
 });

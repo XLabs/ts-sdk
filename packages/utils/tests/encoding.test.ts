@@ -2,7 +2,6 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { stripPrefix, hex, base58, base64, bignum, bytes } from "../src/encoding.js";
-import type { Size } from "../src/misc.js";
 
 describe("stripPrefix", () => {
   it("should strip prefix", () => {
@@ -102,10 +101,10 @@ describe("bignum", () => {
   it("should convert to bytes", () => {
     assert.deepStrictEqual(bignum.toBytes(4660n), new Uint8Array([0x12, 0x34]));
     assert.deepStrictEqual(bignum.toBytes(4660), new Uint8Array([0x12, 0x34]));
-    assert.deepStrictEqual(bignum.toBytes(4660n, 4 as Size),
+    assert.deepStrictEqual(bignum.toBytes(4660n, 4),
       new Uint8Array([0x00, 0x00, 0x12, 0x34]),
     );
-    assert.throws(() => bignum.toBytes(4660n, 1 as Size));
+    assert.throws(() => bignum.toBytes(4660n, 1));
   });
 
   it("should convert to number", () => {
@@ -140,16 +139,16 @@ describe("bytes", () => {
   });
 
   it("should zero pad", () => {
-    assert.deepStrictEqual(bytes.zpad(new Uint8Array([1, 2, 3]), 5 as Size),
+    assert.deepStrictEqual(bytes.zpad(new Uint8Array([1, 2, 3]), 5),
       new Uint8Array([0, 0, 1, 2, 3]),
     );
-    assert.deepStrictEqual(bytes.zpad(new Uint8Array([1, 2, 3]), 3 as Size),
+    assert.deepStrictEqual(bytes.zpad(new Uint8Array([1, 2, 3]), 3),
       new Uint8Array([1, 2, 3]),
     );
-    assert.deepStrictEqual(bytes.zpad(new Uint8Array([1]), 2 as Size, false),
+    assert.deepStrictEqual(bytes.zpad(new Uint8Array([1]), 2, false),
       new Uint8Array([1, 0]),
     );
-    assert.throws(() => bytes.zpad(new Uint8Array([1, 2, 3]), 2 as Size));
+    assert.throws(() => bytes.zpad(new Uint8Array([1, 2, 3]), 2));
   });
 
   it("should concat", () => {

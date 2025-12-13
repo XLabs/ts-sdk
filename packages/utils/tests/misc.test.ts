@@ -1,7 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import type { Text } from "../src/misc.js";
 import { definedOrThrow, throws } from "../src/misc.js";
 
 describe("throws", () => {
@@ -20,15 +19,14 @@ describe("throws", () => {
 
 describe("definedOrThrow", () => {
   it("should return the value if defined", () => {
-    // eslint-disable-next-line unicorn/no-null
-    assert.strictEqual(definedOrThrow(null, "Value is undefined" as Text), null);
-    assert.strictEqual(definedOrThrow(0, "Value is undefined" as Text), 0);
-    assert.strictEqual(definedOrThrow(false, "Value is undefined" as Text), false);
-    assert.strictEqual(definedOrThrow("", "Value is undefined" as Text), "");
+    assert.strictEqual(definedOrThrow(null, "Value is undefined"), null);
+    assert.strictEqual(definedOrThrow(0, "Value is undefined"), 0);
+    assert.strictEqual(definedOrThrow(false, "Value is undefined"), false);
+    assert.strictEqual(definedOrThrow("", "Value is undefined"), "");
   });
 
   it("should throw an error if the value is undefined", () => {
-    assert.throws(() => definedOrThrow(undefined, "Value is undefined" as Text),
+    assert.throws(() => definedOrThrow(undefined, "Value is undefined"),
       /Value is undefined/,
     );
   });
