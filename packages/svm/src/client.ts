@@ -96,9 +96,9 @@ export const getDeserializedAccount = <
   const A extends MaybeArray<Address>,
   const L extends Layout,
 >(
-  client: SvmClient,
+  client:    SvmClient,
   addressEs: A,
-  layout: L,
+  layout:    L,
 ): Promise<MapArrayness<A, DeriveType<L> | undefined>> =>
   getAccountInfo(client, addressEs).then(res => mapTo(res)(accInfo =>
     accInfo !== undefined ? deserialize(layout, accInfo.data) : undefined
@@ -108,43 +108,48 @@ export type AmountType<K extends KindWithAtomic | undefined> =
   K extends KindWithAtomic ? Amount<K> : bigint;
 
 export const getMint = <const K extends KindWithAtomic | undefined = undefined>(
-  client: SvmClient,
+  client:      SvmClient,
   mintAddress: Address,
-  kind?: K,
+  kind?:       K,
 ): Promise<MintAccount<K> | undefined> =>
   getDeserializedAccount(client, mintAddress, mintAccountLayout(kind));
 
 export const getTokenAccount = <
   const A extends MaybeArray<Address>,
-  const K extends KindWithAtomic | undefined = undefined,
+  const KT extends KindWithAtomic | undefined = undefined,
+  const KS extends KindWithAtomic | undefined = undefined,
 >(
-  client: SvmClient,
-  tokenAccs: A,
-  kind?: K,
-): Promise<MapArrayness<A, TokenAccount<K> | undefined>> =>
-  getDeserializedAccount(client, tokenAccs, tokenAccountLayout(kind));
+  client:     SvmClient,
+  tokenAccs:  A,
+  tokenKind?: KT,
+  solKind?:   KS,
+): Promise<MapArrayness<A, TokenAccount<KT, KS> | undefined>> =>
+  getDeserializedAccount(client, tokenAccs, tokenAccountLayout(tokenKind, solKind));
 
 export const getTokenBalance = <
   const A extends MaybeArray<Address>,
   const K extends KindWithAtomic | undefined = undefined,
 >(
-  client: SvmClient,
-  tokenAccs: A,
-  kind?: K,
+  client:     SvmClient,
+  tokenAccs:  A,
+  tokenKind?: K,
 ): Promise<MapArrayness<A, AmountType<K> | undefined>> =>
-  getDeserializedAccount(client, tokenAccs, tokenAccountLayout(kind))
+  getDeserializedAccount(client, tokenAccs, tokenAccountLayout(tokenKind))
     .then(res => mapTo(res)(maybeToken =>
       (maybeToken as { amount: AmountType<K> } | undefined)?.amount,
     )) as any;
 
-export const getDurableNonceAccount = (
-  client: SvmClient,
+export const getDurableNonceAccount = <
+  const K extends KindWithAtomic | undefined = undefined,
+>(
+  client:  SvmClient,
   address: Address,
-): Promise<DurableNonceAccount | undefined> =>
-  getDeserializedAccount(client, address, durableNonceAccountLayout);
+  kind?:   K,
+): Promise<DurableNonceAccount<K> | undefined> =>
+  getDeserializedAccount(client, address, durableNonceAccountLayout(kind));
 
 export const getAddressLookupTable = (
-  client: SvmClient,
+  client:  SvmClient,
   address: Address,
 ): Promise<AddressLookupTable | undefined> =>
   getDeserializedAccount(client, address, addressLookupTableLayout);
@@ -155,8 +160,8 @@ export const getLatestBlockhash = (
   client.getLatestBlockhash().send().then(res => res.value);
 
 export const addLifetimeAndSendTx = (
-  client: SvmClient,
-  tx: TxMsgWithFeePayer,
+  client:  SvmClient,
+  tx:      TxMsgWithFeePayer,
   signers: RoArray<KeyPairSigner>,
 ): Promise<Signature> =>
   getLatestBlockhash(client)
@@ -164,9 +169,9 @@ export const addLifetimeAndSendTx = (
     .then(txWithLifetime => sendTx(client, txWithLifetime, signers));
 
 export const sendTx = (
-  client: SvmClient,
-  tx: TxWithLifetime,
-  signers: RoArray<KeyPairSigner>
+  client:  SvmClient,
+  tx:      TxWithLifetime,
+  signers: RoArray<KeyPairSigner>,
 ): Promise<Signature> =>
   signTransaction(signers.map(kp => kp.keyPair), compileTransaction(tx)).then(
     signedTx => client.sendTransaction(getBase64EncodedWireTransaction(signedTx), encb64).send()

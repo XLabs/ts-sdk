@@ -112,10 +112,9 @@ type SizedReturnItem<S extends number, T> = {
   binary: "uint";
   size: S;
   custom: CustomConversion<NumericType<S>, T>;
-};
+} extends infer R extends Item ? R : never;
 
-type AmountReturnItem<S extends number, K extends Kind> =
-  SizedReturnItem<S, Amount<K>>;
+type AmountReturnItem<S extends number, K extends Kind> = SizedReturnItem<S, Amount<K>>;
 //conversion happens in 3 stages:
 // 1. raw value is read from layout
 // 2. then it is optionally transformed (e.g. scaled/multiplied/etc.)
@@ -169,7 +168,7 @@ export function amountItem<S extends number, const K extends Kind>(
         transform.from(amount.in(unitSymbol) as Rational),
     };
 
-  return { binary: "uint", size, custom };
+  return { binary: "uint", size, custom } as any;
 }
 
 type ConversionReturnItem<S extends number, NK extends Kind, DK extends Kind> =
@@ -187,13 +186,16 @@ type AmountItem = {
 export function conversionItem<const AI extends AmountItem, const DK extends KindWithHuman>(
   amntItem: AI,
   denKind: DK, //uses "human" unit by default
-): AI extends AmountReturnItem<infer S, infer NK> ? ConversionReturnItem<S, NK, DK> : never;
+): AI extends AmountReturnItem<infer S extends number, infer NK>
+  ? ConversionReturnItem<S, NK, DK>
+  : never;
 export function conversionItem<const AI extends AmountItem, const DK extends Kind>(
   amntItem: AI,
   denKind: DK,
-  //eslint-disable-next-line @typescript-eslint/unified-signatures
   denUnit: SymbolsOf<DK>,
-): AI extends AmountReturnItem<infer S, infer NK> ? ConversionReturnItem<S, NK, DK> : never;
+): AI extends AmountReturnItem<infer S extends number, infer NK>
+  ? ConversionReturnItem<S, NK, DK>
+  : never;
 export function conversionItem<
   S extends number,
   const NK extends Kind,

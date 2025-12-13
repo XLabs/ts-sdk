@@ -68,6 +68,15 @@ export type KindWithAtomic<
   A extends U                    = U,
 > = Kind<U, N, Y, S, H, A>;
 
+export type KindWithHumanAndAtomic<
+  U extends string               = string,
+  N extends string               = string,
+  Y extends SystemInfo           = SystemInfo,
+  S extends ValidStandardInfo<Y> = ValidStandardInfo<Y>,
+  H extends U                    = U,
+  A extends U                    = U,
+> = Kind<U, N, Y, S, H, A>;
+
 export type SymbolsOf<K extends Kind> =
   Extract<keyof K["units"], string> |
   "standard" |

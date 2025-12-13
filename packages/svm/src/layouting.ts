@@ -11,7 +11,6 @@ import type {
   CustomizableBytes,
   CustomConversion,
   Item,
-  UintItem,
   Layout,
   ProperLayout,
   DeriveType,
@@ -24,7 +23,8 @@ import {
   unwrapSingleton,
   stringConversion,
 } from "@xlabs-xyz/binary-layout";
-import { type KindWithAtomic } from "@xlabs-xyz/amount";
+import type { KindWithAtomic, AmountFromArgs } from "@xlabs-xyz/amount";
+import { Amount } from "@xlabs-xyz/amount";
 import { amountItem, hashItem, paddingItem } from "@xlabs-xyz/common";
 import { base58, bytes } from "@xlabs-xyz/utils";
 import { type DiscriminatorType, discriminatorOf } from "./utils.js";
@@ -46,13 +46,24 @@ export const svmAddressItem = {
   } satisfies CustomConversion<RoUint8Array, Address>,
 } as const satisfies Item;
 
-export const lamportsItem = {
+const kitLamportsItem = {
   ...u64Item,
   custom: {
     to:   (lamports: bigint)   => lamports as Lamports,
     from: (lamports: Lamports) => lamports,
   } satisfies CustomConversion<bigint, Lamports>,
 } as const satisfies Item;
+
+export const svmAmountItem = <
+  const K extends KindWithAtomic | undefined = undefined,
+  S extends number = 8
+>(kind?: K, size?: S):
+    K extends KindWithAtomic ? ReturnType<typeof amountItem<S, K>> : typeof kitLamportsItem =>
+      (kind ? littleEndian(amountItem(size ?? 8, kind)) : u64Item) as any;
+
+export const lamportsItem = <const K extends KindWithAtomic | undefined = undefined>(kind?: K):
+  K extends KindWithAtomic ? ReturnType<typeof svmAmountItem<K>> : typeof kitLamportsItem =>
+  (kind ? svmAmountItem(kind) : kitLamportsItem) as any;
 
 export const vecBytesItem = <const P extends CustomizableBytes>(spec?: P) =>
   customizableBytes({ lengthSize: 4, lengthEndianness: "little" }, spec);
@@ -143,73 +154,65 @@ export const cOptionItem = <const L extends Layout>(
 export const cOptionAddressItem = (size: NumberSize = 4) =>
   cOptionItem(svmAddressItem, zeroAddress, size);
 
-const baseMintAccountLayout = <const I extends UintItem>(item: I) => [
+export const cOoptionLamportsItem =
+  <const K extends KindWithAtomic | undefined = undefined>(kind?: K, size: NumberSize = 4) =>
+    cOptionItem(
+      lamportsItem(kind),
+      ( kind
+        ? Amount.from(0, ...([kind, "atomic"] as AmountFromArgs<K & KindWithAtomic>))
+        : 0n as Lamports
+      ) as DeriveType<ReturnType<typeof lamportsItem<K>>>,
+      size
+    );
+
+export const mintAccountLayout = <K extends KindWithAtomic | undefined = undefined>(kind?: K) => [
   { name: "mintAuthority",   ...cOptionAddressItem() },
-  { name: "supply",          ...item                 },
+  { name: "supply",          ...lamportsItem(kind)   },
   { name: "decimals",        binary: "uint", size: 1 },
   { name: "isInitialized",   ...boolItem()           },
   { name: "freezeAuthority", ...cOptionAddressItem() },
 ] as const;
-
-const untypedMintAccountLayout = baseMintAccountLayout(lamportsItem);
-const typedMintAccountLayout = <const K extends KindWithAtomic>(kind: K) =>
-  baseMintAccountLayout(amountItem(8, kind));
-
-export const mintAccountLayout =
-  <const K extends KindWithAtomic | undefined = undefined>(kind?: K):
-      ReturnType<typeof littleEndian<
-        K extends KindWithAtomic
-        ? ReturnType<typeof typedMintAccountLayout<K>>
-        : typeof untypedMintAccountLayout
-      >> =>
-    littleEndian(kind ? typedMintAccountLayout(kind) : untypedMintAccountLayout) as any;
 
 export type MintAccount<K extends KindWithAtomic | undefined = undefined> =
   DeriveType<ReturnType<typeof mintAccountLayout<K>>>;
 
 //TODO implement support/layouts for token2022 mint extensions
 
-const initStates = ["Uninitialized", "Initialized"] as const;
+export const initStates = ["Uninitialized", "Initialized"] as const;
 
-const tokenStates = [...initStates, "Frozen"] as const;
-const baseTokenAccountLayout = <const I extends UintItem>(item: I) => [
-  { name: "mint",            ...svmAddressItem                            },
-  { name: "owner",           ...svmAddressItem                            },
-  { name: "amount",          ...item                                      },
-  { name: "delegate",        ...cOptionAddressItem()                      },
-  { name: "state",           ...cEnumItem(tokenStates)                    },
-  { name: "isNative",        ...cOptionItem(lamportsItem, 0n as Lamports) },
-  { name: "delegatedAmount", ...item                                      },
-  { name: "closeAuthority",  ...cOptionAddressItem()                      },
+export const tokenStates = [...initStates, "Frozen"] as const;
+export const tokenAccountLayout = <
+  const KT extends KindWithAtomic | undefined = undefined,
+  const KS extends KindWithAtomic | undefined = undefined,
+>(tokenKind?: KT, solKind?: KS) => [
+  { name: "mint",            ...svmAddressItem                },
+  { name: "owner",           ...svmAddressItem                },
+  { name: "amount",          ...svmAmountItem(tokenKind)      },
+  { name: "delegate",        ...cOptionAddressItem()          },
+  { name: "state",           ...cEnumItem(tokenStates)        },
+  { name: "isNative",        ...cOoptionLamportsItem(solKind) },
+  { name: "delegatedAmount", ...svmAmountItem(tokenKind)      },
+  { name: "closeAuthority",  ...cOptionAddressItem()          },
 ] as const;
 
-const untypedTokenAccountLayout = baseTokenAccountLayout(lamportsItem);
-const typedTokenAccountLayout = <const K extends KindWithAtomic>(kind: K) =>
-  baseTokenAccountLayout(amountItem(8, kind));
-
-export const tokenAccountLayout =
-  <const K extends KindWithAtomic | undefined = undefined>(kind?: K):
-    ReturnType<typeof littleEndian<
-      K extends KindWithAtomic
-      ? ReturnType<typeof typedTokenAccountLayout<K>>
-      : typeof untypedTokenAccountLayout
-    >> =>
-    littleEndian(kind ? typedTokenAccountLayout(kind) : untypedTokenAccountLayout) as any;
-
-export type TokenAccount<K extends KindWithAtomic | undefined = undefined> =
-  DeriveType<ReturnType<typeof tokenAccountLayout<K>>>;
+export type TokenAccount<
+  KT extends KindWithAtomic | undefined = undefined,
+  KS extends KindWithAtomic | undefined = undefined,
+> = DeriveType<ReturnType<typeof tokenAccountLayout<KT, KS>>>;
 
 //see https://github.com/solana-program/system/blob/main/clients/js/src/generated/accounts/nonce.ts
 const nonceVersion = ["Legacy", "Current"] as const;
-export const durableNonceAccountLayout = [
+export const durableNonceAccountLayout =
+  <const K extends KindWithAtomic | undefined = undefined>(kind?: K) => [
   { name: "version",         ...cEnumItem(nonceVersion, 4) },
   { name: "state",           ...cEnumItem(initStates,   4) },
   { name: "authority",       ...svmAddressItem             },
   { name: "blockhash",       ...hashItem                   },
-  { name: "solPerSignature", ...lamportsItem               },
+  { name: "solPerSignature", ...lamportsItem(kind)         },
 ] as const satisfies ProperLayout;
 
-export type DurableNonceAccount = DeriveType<typeof durableNonceAccountLayout>;
+export type DurableNonceAccount<K extends KindWithAtomic | undefined = undefined> =
+  DeriveType<ReturnType<typeof durableNonceAccountLayout<K>>>;
 
 //see https://github.com/solana-program/address-lookup-table/blob/main/program/src/state.rs#L64
 const assumeInitializedAltItem = {
