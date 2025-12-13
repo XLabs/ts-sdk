@@ -52,6 +52,13 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
   solKind?: SOL,
 ) => {
   const minimumBalanceForRentExemption = curryMinimumBalanceForRentExemption(solKind);
+  const inLamports = (lamports: SOL extends KindWithAtomic ? Amount<SOL> : Lamports) =>
+    solKind ? (lamports as Amount<SOL & KindWithAtomic>).in("atomic") : lamports as bigint;
+
+  const airdrop = (
+    address:  Address,
+    lamports: SOL extends KindWithAtomic ? Amount<SOL> : Lamports,
+  ) => forkSvm.airdrop(address, inLamports(lamports));
 
   const rpc = forkSvm.createForkRpc();
 
@@ -83,10 +90,7 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
     forkSvm.setAccount(address, {
       owner:      programId,
       executable: false,
-      lamports:   ( solKind
-                    ? (lamports as Amount<SOL & KindWithAtomic>).in("atomic")
-                    : lamports
-                  ) as Lamports,
+      lamports:   inLamports(lamports),
       space:      BigInt(data.length),
       data,
     });
@@ -182,14 +186,16 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
     createTx(instructions, feePayer, alts).then(tx => sendTx(tx, feePayer, additionalSigners));
 
   return {
-    createAccount,
-    createAta,
+    minimumBalanceForRentExemption,
     getAccountInfo,
     getDeserializedAccount,
     getMint,
     getTokenAccount,
     getBalance,
     getTokenBalance,
+    airdrop,
+    createAccount,
+    createAta,
     createTx,
     sendTx,
     createAndSendTx,

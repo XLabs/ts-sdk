@@ -226,7 +226,7 @@ describe("ForkSvm", () => {
     it("should set the clock timestamp and slot", () => {
       const timestamp = new Date("2024-01-01T00:00:00Z");
       const slot = 100n;
-      forkSvm.setClock(timestamp, slot);
+      forkSvm.setClock({ timestamp, slot });
 
       const clockTimestamp = forkSvm.latestTimestamp();
       const clockSlot = forkSvm.latestSlot();
