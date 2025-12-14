@@ -348,6 +348,89 @@ if (Conversion.hasDen(conv, "USD")) ...                   // narrowed denominato
 
 ## Limitations
 
+### IntelliSense & Best Practice
+
+Oh... you made it all the way down here. Well... then I guess it's time then to let you in on a little secret:
+
+> [...] without the headache/boilerplate
+
+I lied.
+
+All the convenience of `Amount`s and `Kind`s comes at a cost: Massive, and massively ugly types. A kind as simple as this one:
+
+```typescript
+const Token = kind(
+  "Token",
+  [ { symbols: [{ symbol: "TOK"  }] },
+    { symbols: [{ symbol: "µTOK" }], oom:  -6 } ],
+  { human: "TOK", atomic: "µTOK" },
+);
+```
+
+already gives this absolutely horrid type:
+
+```typescript
+const Token: Readonly<{
+    name: "Token";
+    units: KindUnits<"TOK" | "µTOK">;
+    standard: StandardInfo<"default", "TOK">;
+    systems: KindSystems<SystemInfo<"default", "TOK" | "µTOK", true>>;
+} & {
+    human: "TOK";
+} & {
+    atomic: "µTOK";
+}> & Branded<Readonly<{
+    name: "Token";
+    units: KindUnits<"TOK" | "µTOK">;
+    standard: StandardInfo<"default", "TOK">;
+    systems: KindSystems<SystemInfo<"default", "TOK" | "µTOK", true>>;
+} & {
+    human: "TOK";
+} & {
+    atomic: "µTOK";
+}>, "decimalHuman" | ... 1 more ... | "decimalStandard">
+```
+
+Good lord, not even a mother wants to look at that.
+
+Thankfully, we can do the type equivalent of pulling a brown bag over the kind's head like so:
+
+```typescript
+import type { Opaque } from "@xlabs-xyz/const-utils";
+
+const _Token = kind(
+  "Token",
+  [ { symbols: [{ symbol: "TOK"  }] },
+    { symbols: [{ symbol: "µTOK" }], oom:  -6 } ],
+  { human: "TOK", atomic: "µTOK" },
+);
+
+//Often, even just `type TokenKind = Opaque<typeof _Token>` is enough - but why risk it?
+export interface TokenKind extends Opaque<typeof _Token> {};
+export const Token = _Token as TokenKind;   // const Token: TokenKind - thank god!
+```
+
+So it takes 2 lines of boiler-plate to restore sanity.
+
+Additionally, one typically wants to define two additional things:
+
+```typescript
+export type  Token = Amount<typeof Token>; // (1)
+export const token = Amount.ofKind(Token); // (2)
+```
+
+(1) reflects the fact that one usually doesn't care about `Kind`s, but `Amount`s, while (2) makes specifying amounts more natural.
+
+Granted, it is weird to have a type `Token` that has the same name as a runtime variable of the same name, yet their types differ, but it is far more natural to write functions like so:
+
+```typescript
+function transfer(amount: Token) { //instead of Amount<TokenKind>
+  const transferCost = token(1);   //instead of Amount.from(1, Token)
+  const transferAmount = amount.sub(transferCost);
+  //...
+}
+```
+
 ### Symbol Characters
 
 Symbols cannot contain:

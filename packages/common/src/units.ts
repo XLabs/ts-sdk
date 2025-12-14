@@ -1,8 +1,8 @@
-import { RoArray, RoPair } from "@xlabs-xyz/const-utils";
+import { RoArray, RoPair, Opaque } from "@xlabs-xyz/const-utils";
 import { otherCap, column, zip, pickWithOrder } from "@xlabs-xyz/const-utils";
 import type {
   Rationalish,
-  KindWithHumanAndAtomic,
+  DecimalKind,
   SystemInfo,
   ValidStandardInfo,
 } from "@xlabs-xyz/amount";
@@ -18,7 +18,7 @@ export type CurrencyKind<
   S extends ValidStandardInfo<Y> = ValidStandardInfo<Y>,
   H extends U = U,
   A extends U = U,
-> = KindWithHumanAndAtomic<U, N, Y, S, H, A>;
+> = DecimalKind<U, N, Y, S, H, A>;
 
 export const withPluralS = <S extends string>(symbol: S) =>
   ({ symbol, plural: (symbol + "s") as `${S}s` } as const);
@@ -51,7 +51,7 @@ export const toDecimalUnits =
   <const T extends RoArray<RoPair<Rationalish, RoArray>>>(spec: T): ToUnits<"oom", T> =>
     spec.map(([oom, symbols]) => ({ oom, symbols })) as any;
 
-export const Percentage = scalar(kind(
+const _PercentageKind = scalar(kind(
   "Percentage",
   toDecimalUnits([
     [  0, [{ symbol: "x", spacing: "compact" }, { symbol: "scalar" }] ],
@@ -60,7 +60,9 @@ export const Percentage = scalar(kind(
   ]),
   { human: "%" },
 ));
-export type Percentage = Amount<typeof Percentage>;
+export interface PercentageKind extends Opaque<typeof _PercentageKind> {}
+export const Percentage = _PercentageKind as PercentageKind;
+export type  Percentage = Amount<typeof Percentage>;
 export const percentage = Amount.ofKind(Percentage);
 
 const durationSpec = [
@@ -77,18 +79,20 @@ const durationSpec = [
                                                    { symbol: "year" }                  ]],
 ] as const;
 
-export const Duration = kind(
+const _Duration = kind(
   "Duration",
   [ [ "long",  toCompoundUnits(zip([column(durationSpec, 0), column(durationSpec, 1)])) ],
     [ "short", toCompoundUnits(zip([column(durationSpec, 0), column(durationSpec, 2)])) ],
   ],
 );
-export type Duration = Amount<typeof Duration>;
+export interface DurationKind extends Opaque<typeof _Duration> {}
+export const Duration = _Duration as DurationKind;
+export type  Duration = Amount<typeof Duration>;
 export const duration = Amount.ofKind(Duration);
 
 const symbolByte = { symbol: "byte", plural: "bytes" } as const;
 const bitScale = Rational.from(1n, 8n);
-export const Byte = kind(
+const _Byte = kind(
   "Byte",
   [ [ "SI", toDecimalUnits([
       [  0, [  symbolByte    ] ],
@@ -108,7 +112,9 @@ export const Byte = kind(
   ],
   { human: "byte", atomic: "byte" },
 );
-export type Byte = Amount<typeof Byte>;
+export interface ByteKind extends Opaque<typeof _Byte> {}
+export const Byte = _Byte as ByteKind;
+export type  Byte = Amount<typeof Byte>;
 export const byte = Amount.ofKind(Byte);
 
 const usdSymbolic = toDecimalUnits([
@@ -116,7 +122,7 @@ const usdSymbolic = toDecimalUnits([
   [ -2, [{ symbol: "¢", spacing: "compact"                     }] ],
 ]);
 
-export const Usd = kind(
+const _UsdKind = kind(
   "Usd",
   [ [ "default", usdSymbolic ],
     [ "uniform", toDecimalUnits([
@@ -127,7 +133,9 @@ export const Usd = kind(
   ],
   { human: "$", atomic: "¢" },
 );
-export type Usd = Amount<typeof Usd>;
+export interface UsdKind extends Opaque<typeof _UsdKind> {}
+export const Usd = _UsdKind as UsdKind;
+export type  Usd = Amount<typeof Usd>;
 export const usd = Amount.ofKind(Usd);
 
 const usdtUniform = toDecimalUnits([
@@ -135,7 +143,7 @@ const usdtUniform = toDecimalUnits([
   [ -6, [{ symbol: "µUSDT" }, { symbol: "microUSDT" }] ],
 ]);
 
-export const Usdt = kind(
+const _UsdtKind = kind(
   "Usdt",
   [ [ "default", usdtUniform ],
     [ "uniform", usdtUniform ],
@@ -144,8 +152,11 @@ export const Usdt = kind(
       [ -6, [{ symbol: "µUSD₮" }] ],
     ])],
   ],
+  { human: "USDT", atomic: "µUSDT" },
 );
-export type Usdt = Amount<typeof Usdt>;
+export interface UsdtKind extends Opaque<typeof _UsdtKind> {}
+export const Usdt = _UsdtKind as UsdtKind;
+export type  Usdt = Amount<typeof Usdt>;
 export const usdt = Amount.ofKind(Usdt);
 
 const usdcUniform = toDecimalUnits([
@@ -153,7 +164,7 @@ const usdcUniform = toDecimalUnits([
   [ -6, [{ symbol: "µUSDC" }, { symbol: "microUSDC" }] ],
 ]);
 
-export const Usdc = kind(
+const _UsdcKind = kind(
   "Usdc",
   [ [ "default", usdcUniform ],
     [ "uniform", usdcUniform ],
@@ -161,7 +172,9 @@ export const Usdc = kind(
   ],
   { human: "USDC", atomic: "µUSDC" },
 );
-export type Usdc = Amount<typeof Usdc>;
+export interface UsdcKind extends Opaque<typeof _UsdcKind> {}
+export const Usdc = _UsdcKind as UsdcKind;
+export type  Usdc = Amount<typeof Usdc>;
 export const usdc = Amount.ofKind(Usdc);
 
 const btcUniform = toDecimalUnits([
@@ -169,7 +182,7 @@ const btcUniform = toDecimalUnits([
   [ -8, [...allowPluralSBothCaps("satoshi")] ],
 ]);
 
-export const Btc = kind(
+const _BtcKind = kind(
   "Btc",
   [ [ "default", btcUniform ],
     [ "uniform", btcUniform ],
@@ -180,7 +193,9 @@ export const Btc = kind(
   ],
   { human: "BTC", atomic: "satoshi" },
 );
-export type Btc = Amount<typeof Btc>;
+export interface BtcKind extends Opaque<typeof _BtcKind> {}
+export const Btc = _BtcKind as BtcKind;
+export type  Btc = Amount<typeof Btc>;
 export const btc = Amount.ofKind(Btc);
 
 const ethUniform = toDecimalUnits([
@@ -189,7 +204,7 @@ const ethUniform = toDecimalUnits([
   [ -18, allowOtherCap("wei")  ],
 ]);
 
-export const Eth = kind(
+const _EthKind = kind(
   "Eth",
   [ [ "default", ethUniform ],
     [ "uniform", ethUniform ],
@@ -200,7 +215,9 @@ export const Eth = kind(
   ],
   { human: "ETH", atomic: "wei" },
 );
-export type Eth = Amount<typeof Eth>;
+export interface EthKind extends Opaque<typeof _EthKind> {}
+export const Eth = _EthKind as EthKind;
+export type  Eth = Amount<typeof Eth>;
 export const eth = Amount.ofKind(Eth);
 
 const solUniform = toDecimalUnits([
@@ -209,7 +226,7 @@ const solUniform = toDecimalUnits([
   [ -15, [...allowPluralS("µLamport"), ...allowPluralS("microLamport")] ],
 ]);
 
-export const Sol = kind(
+const _SolKind = kind(
   "Sol",
   [ [ "default", solUniform ],
     [ "uniform", solUniform ],
@@ -217,5 +234,7 @@ export const Sol = kind(
   ],
   { human: "SOL", atomic: "lamport" },
 );
-export type Sol = Amount<typeof Sol>;
+export interface SolKind extends Opaque<typeof _SolKind> {}
+export const Sol = _SolKind as SolKind;
+export type  Sol = Amount<typeof Sol>;
 export const sol = Amount.ofKind(Sol);

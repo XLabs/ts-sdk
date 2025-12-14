@@ -1,4 +1,4 @@
-import type { Opts, RoArray, RoNeTuple, RoPair } from "@xlabs-xyz/const-utils";
+import type { Opts, RoArray, RoNeTuple, RoPair, Brand } from "@xlabs-xyz/const-utils";
 import { omit, fromEntries, pick, isArray } from "@xlabs-xyz/const-utils";
 import { Rational, Rationalish } from "./rational.js";
 import { segment } from "./segmenting.js";
@@ -10,13 +10,15 @@ export type SymbolSpec = Readonly<{
   plural?:   string;
   position?: "postfix" | "prefix";
   spacing?:  "spaced" | "compact";
-}>
+}>;
 
-export type DecimalSpec<N extends number = number> = { readonly oom: N };
+export type DecimalSpec<N extends number = number> =
+  { readonly oom: N;      readonly scale?: never };
 
-export type ScaleSpec<N extends Rationalish = Rationalish> = { readonly scale: N };
+export type ScaleSpec<N extends Rationalish = Rationalish> =
+  { readonly oom?: never; readonly scale: N  };
 
-export type Unit = SymbolSpec & { readonly scale: Rational } & Partial<DecimalSpec>;
+export type Unit = SymbolSpec & { readonly scale: Rational; readonly oom?: number };
 
 export type SystemInfo<
   N extends string  = string,
@@ -77,16 +79,22 @@ export type KindWithHumanAndAtomic<
   A extends U                    = U,
 > = Kind<U, N, Y, S, H, A>;
 
+export type DecimalKind<
+  U extends string               = string,
+  N extends string               = string,
+  Y extends SystemInfo           = SystemInfo,
+  S extends ValidStandardInfo<Y> = ValidStandardInfo<Y>,
+  H extends U                    = U,
+  A extends U                    = U,
+> = Brand<Kind<U, N, Y, S, H, A>, "decimalHuman" | "decimalAtomic">;
+
 export type SymbolsOf<K extends Kind> =
   Extract<keyof K["units"], string> |
   "standard" |
   (K["human"]  extends string ? "human"  : never) |
   (K["atomic"] extends string ? "atomic" : never);
 
-export type DecimalSymbolsOf<K extends Kind> =
-  K extends Kind<string, string, infer Y extends SystemInfo>
-  ? Y extends { symbols: infer Syms extends string; decimal: true } ? Syms : never
-  : never;
+export type DecimalSymbolsOf<K extends Kind> = DecimalUnitSymbols<K> | DecimalMetaSymbolOf<K>;
 
 export type GetUnitSymbol<K extends Kind, M extends SymbolsOf<K>> =
   M extends "standard" ? K["standard"]["unit"] :
@@ -94,36 +102,61 @@ export type GetUnitSymbol<K extends Kind, M extends SymbolsOf<K>> =
   M extends "atomic"   ? K["atomic"] :
   M;
 
-export type GetUnit<K extends Kind, M extends SymbolsOf<K>> =
-  GetUnitSymbol<K, M> extends infer S extends keyof K["units"]
-  ? K["units"][S] extends Unit ? K["units"][S] : never
-  : never;
-
 export function getUnit<
   const K extends Kind,
-  const S extends SymbolsOf<K>,
->(kind: K, unitSymbol: S): GetUnit<K, S> {
+  S extends SymbolsOf<K>,
+>(kind: K, unitSymbol: S): Unit {
   const symbol =
     unitSymbol === "standard" ? kind.standard.unit :
     unitSymbol === "human"    ? kind.human :
     unitSymbol === "atomic"   ? kind.atomic :
     unitSymbol;
 
-  return kind.units[symbol!] as any;
+  return kind.units[symbol!]!;
 }
+
+export function getDecimals<const K extends Kind>(
+  kind: K,
+  ...args: K extends DecimalKind ? [opts?: GetDecimalsOpts<K>] : [opts: GetDecimalsOpts<K>]
+): number {
+  const {
+    of: ofSymbol = "human",
+    in: inSymbol = "atomic"
+  } = args[0] ?? {};
+
+  return getUnit(kind, ofSymbol as SymbolsOf<K>).oom! -
+         getUnit(kind, inSymbol as SymbolsOf<K>).oom!;
+}
+
+type MetaBrandTags<H, A, S, I extends KindUnitsInput> =
+  [H, "human"] | [A, "atomic"] | [S, "standard"] extends infer M
+  ? M extends [DecimalSymbolsOfSystem<UnitSymbolsOf<UnitsSpecOf<I>>, SystemInfoOf<I>>, MetaSymbols]
+    ? `decimal${Capitalize<M[1]>}`
+    : ""
+  : never;
 
 export function kind<
   N extends string,
   const I extends KindUnitsInput,
-  H extends UnitSymbolsOf<UnitsSpecOf<I>> | undefined = undefined,
-  A extends UnitSymbolsOf<UnitsSpecOf<I>> | undefined = undefined
+  H extends string | undefined = undefined,
+  A extends string | undefined = undefined
 >(name:       N,
   unitsInput: I,
   opts?: Opts<{
-    human:   H;
-    atomic:  A;
+    human:   H & UnitSymbolsOf<UnitsSpecOf<I>>;
+    atomic:  A & UnitSymbolsOf<UnitsSpecOf<I>>;
   }>
-): Kind<UnitSymbolsOf<UnitsSpecOf<I>>, N, SystemInfoOf<I>, StandardInfoOf<I>, H, A> {
+): Brand<
+  Kind<
+    UnitSymbolsOf<UnitsSpecOf<I>>,
+    N,
+    SystemInfoOf<I>,
+    StandardInfoOf<I>,
+    H & UnitSymbolsOf<UnitsSpecOf<I>> extends never ? undefined : H & UnitSymbolsOf<UnitsSpecOf<I>>,
+    A & UnitSymbolsOf<UnitsSpecOf<I>> extends never ? undefined : A & UnitSymbolsOf<UnitsSpecOf<I>>
+  >,
+  MetaBrandTags<H, A, StandardInfoOf<I>["unit"], I>
+> {
   const isSystemsSpec = isArray(unitsInput) && isArray(unitsInput[0]);
   const systemEntries = (
     isSystemsSpec ? unitsInput : [["default", unitsInput]]
@@ -209,15 +242,21 @@ export function identifyKind<K extends Kind, A extends boolean = false>(
 
 type UnitBaseSpec = { readonly symbols: RoNeTuple<SymbolSpec> };
 
-type UnitSpec<D extends boolean> = UnitBaseSpec & (D extends true ? DecimalSpec : ScaleSpec);
-
-type StandardUnitSpec<D extends boolean> =
-  UnitBaseSpec & (D extends true ? Partial<DecimalSpec<0>> : Partial<ScaleSpec<1 | 1n>>);
+type UnitSpec<F extends boolean, D extends boolean> =
+  UnitBaseSpec & (
+    F extends true
+    ? D extends true
+      ? Partial<DecimalSpec<0>>
+      : Partial<ScaleSpec<1 | 1n>>
+    : D extends true ? DecimalSpec : ScaleSpec
+  );
 
 type KindUnitsSpec<F extends boolean, D extends boolean> =
-  F extends true
-  ? readonly [StandardUnitSpec<D>, ...UnitSpec<D>[]]
-  : RoNeTuple<UnitSpec<D>>;
+  D extends any
+  ? F extends true
+    ? readonly [UnitSpec<true, D>, ...UnitSpec<false, D>[]]
+    : RoNeTuple<UnitSpec<false, D>>
+  : never;
 
 type KindUnits<U extends string> = { readonly [K in U]?: Unit };
 
@@ -229,8 +268,10 @@ type KindSystems<Y extends SystemInfo> = {
 };
 
 type UnitSymbolsOf<U extends RoArray<UnitBaseSpec>> =
-  U[number]["symbols"][number] extends infer S extends SymbolSpec
-  ? S["symbol"] | (S["plural"] extends string ? S["plural"] : never)
+  U[number]["symbols"][number] extends infer S
+  ? S extends SymbolSpec
+    ? S["symbol"] | Extract<S["plural"], string>
+    : never
   : never;
 
 type SystemEntry<
@@ -281,6 +322,43 @@ type StandardInfoOf<I extends KindUnitsInput> =
     extends ValidStandardInfo<SystemInfoOf<I>> //tell tsc that this must hold
   ? S
   : never;
+
+type MetaSymbols = "standard" | "human" | "atomic";
+type DecimalMetaSymbolOf<K extends Kind, M extends MetaSymbols = MetaSymbols> =
+  M extends MetaSymbols
+  ? K extends Brand<any, `decimal${Capitalize<M>}`>
+    ? M
+    : never
+  : never;
+
+type DecimalSymbolsOfSystem<U extends string, Y extends SystemInfo> =
+  Y extends { symbols: infer Syms extends U; decimal: true }
+  ? Syms
+  : never;
+
+type DecimalUnitSymbols<K extends Kind> =
+  K extends Kind<infer U, string, infer Y extends SystemInfo>
+  ? DecimalSymbolsOfSystem<U, Y>
+  : never;
+
+type GetDecimalsOptsImpl<K extends Kind, M extends "human" | "atomic"> =
+  DecimalSymbolsOf<K> extends infer D
+  ? ( ( M extends "human"
+        ? "of"
+        : "in"
+      ) extends infer P extends string
+      ? { [_ in P]: D }
+      : never
+    ) extends infer R
+    ? M extends D
+      ? Opts<R>
+      : R
+    : never
+  : never;
+
+type GetDecimalsOpts<K extends Kind> =
+  GetDecimalsOptsImpl<K, "human"> &
+  GetDecimalsOptsImpl<K, "atomic">;
 
 const addScale = (spec: DecimalSpec) =>
   ({ oom: spec.oom, scale: powerOfTen(spec.oom) });

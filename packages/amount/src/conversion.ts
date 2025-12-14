@@ -111,12 +111,12 @@ export class _Conversion<NK extends Kind, DK extends Kind> {
   }
 
   mul(scalar: Rationalish | Amount<Brand<Kind, "scalar">>): Conversion<NK, DK> {
-    scalar = _Conversion.isAmount(scalar) ? scalar.in("standard") : scalar;
+    scalar = _Conversion.isAmount(scalar) ? scalar.in("standard") : scalar as Rationalish;
     return new _Conversion(this.ratio.mul(scalar), this.num, this.den) as Conversion<NK, DK>;
   }
 
   div(scalar: Rationalish | Amount<Brand<Kind, "scalar">>): Conversion<NK, DK> {
-    scalar = _Conversion.isAmount(scalar) ? scalar.in("standard") : scalar;
+    scalar = _Conversion.isAmount(scalar) ? scalar.in("standard") : scalar as Rationalish;
     return new _Conversion(this.ratio.div(scalar), this.num, this.den) as Conversion<NK, DK>;
   }
 
