@@ -1,20 +1,60 @@
+// This file implements a hierarchical branding system for TypeScript types.
+//
+// Branding allows you to create distinct types from a base type by attaching tags, to get around
+//   issues that stem from TypeScript using structural typing (duck-typing) where
+//   `type UserId = string;` and `type ProductId = string;` are considered equivalent, leading to
+//   accidental mixing of values that share the same underlying type but represent different
+//   concepts.
+//
+// # Hierarchical Tag Accumulation
+//
+// The key feature of this implementation on top of normal branding mechanics is that tags
+//   accumulate hierarchically. When you brand a type that's already branded, the new tag is
+//   added to the existing set of tags rather than replacing them:
+//
+// ```
+// type UserId = Brand<string, "UserId">;
+// type AdminId = Brand<UserId, "AdminId">; // AdminId now has both "UserId" and "AdminId" tags
+// ```
+//
+// This allows for type hierarchies where more specific branded types inherit the constraints
+//   of their parent brands, but can be covariantly passed to functions that expect the parent type:
+//
+// ```
+// function processUser(userId: UserId);
+// processUser(adminId); // works because AdminId is a subtype of UserId
+// ```
+//
+// # brand Convenience Function
+//
+// `brand()` captures the inferred type without requiring its explicit specification.
+//
+// This is useful when branding complex types like kinds from @xlabs-xyz/amount or when
+//   combining branding utilities, e.g. @solana/kit's address:
+//
+// ```
+// import { address } from "@solana/kit";
+//
+// const userAddress = brand<"user">()(address("3WxjT2rCBfncPvDHsnBc9nB3MQo2eYk25tV2SmC9E5HM"));
+// // => userAddress: Brand<Address<3WxjT2rCBfncPvDHsnBc9nB3MQo2eYk25tV2SmC9E5HM>, "user">
+// ```
+
 import type { RoUint8Array } from "./typing.js";
 
 declare const __brand: unique symbol;
-type Branded<Base, Tags extends string> = {
+export type Branded<Base, Tags extends string> = {
   [__brand]: { base: Base; tags: { [K in Tags]: never } }
 };
 
-type ExtractBase<T> =
-  T extends { [__brand]: { base: infer B } } ? B : T;
-
-type ExtractTags<T> =
+export type ExtractTags<T> =
   T extends { [__brand]: { tags: infer Tags } } ? keyof Tags & string : never;
 
-export type Unbrand<T> = ExtractBase<T>;
+export type Unbrand<T> = T extends { [__brand]: { base: infer B } } ? B : T;
 
 export type Brand<T, B extends string> =
-  ExtractBase<T> & Branded<ExtractBase<T>, ExtractTags<T> | B>;
+  Exclude<B, ""> extends never //convenience fall-through
+  ? T
+  : Unbrand<T> & Branded<Unbrand<T>, ExtractTags<T> | Exclude<B, "">>;
 
 export type IsBranded<T> = [ExtractTags<T>] extends [never] ? false : true;
 
