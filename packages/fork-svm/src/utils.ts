@@ -12,11 +12,12 @@ import {
   appendTransactionMessageInstructions,
   compressTransactionMessageUsingAddressLookupTables,
 } from "@solana/kit";
-import type { RoArray, RoUint8Array, MaybeArray, MapArrayness } from "@xlabs-xyz/const-utils";
+import type { RoArray, RoUint8Array, MaybeArray, MapArrayness, Opts } from "@xlabs-xyz/const-utils";
 import { zip } from "@xlabs-xyz/const-utils";
 import { base58, definedOrThrow } from "@xlabs-xyz/utils";
 import { serialize, deserialize, calcStaticSize } from "@xlabs-xyz/binary-layout";
-import { type KindWithAtomic, Amount } from "@xlabs-xyz/amount";
+import type { KindWithAtomic, KindWithHumanAndAtomic } from "@xlabs-xyz/amount";
+import { Amount, getDecimals } from "@xlabs-xyz/amount";
 import { toAmountIfKind } from "@xlabs-xyz/common";
 import type { Ix, TokenAccount, LamportsType, AmountType, TxMsgWithFeePayer } from "@xlabs-xyz/svm";
 import {
@@ -24,8 +25,9 @@ import {
   tokenProgramId,
   nativeMint,
   findAta,
-  curryMinimumBalanceForRentExemption,
+  mintAccountLayout,
   tokenAccountLayout,
+  curryMinimumBalanceForRentExemption,
   curryGetAccountInfo,
   curryGetDeserializedAccount,
   curryGetBalance,
@@ -33,6 +35,7 @@ import {
   curryGetTokenAccount,
   curryGetTokenBalance,
   curryAddLifetimeAndSendTx,
+  systemProgramId,
 } from "@xlabs-xyz/svm";
 import { ForkSvm, TransactionMetadata, FailedTransactionMetadata } from "./forkSvm.js";
 
@@ -52,6 +55,13 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
   solKind?: SOL,
 ) => {
   const minimumBalanceForRentExemption = curryMinimumBalanceForRentExemption(solKind);
+  const inLamports = (lamports: SOL extends KindWithAtomic ? Amount<SOL> : Lamports) =>
+    solKind ? (lamports as Amount<SOL & KindWithAtomic>).in("atomic") : lamports as bigint;
+
+  const airdrop = (
+    address:  Address,
+    lamports: SOL extends KindWithAtomic ? Amount<SOL> : Lamports,
+  ) => forkSvm.airdrop(address, inLamports(lamports));
 
   const rpc = forkSvm.createForkRpc();
 
@@ -76,27 +86,69 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
 
   const createAccount = (
     address:   Address,
-    data:      RoUint8Array,
-    programId: Address,
-    lamports:  SOL extends KindWithAtomic ? Amount<SOL> : Lamports,
-   ) =>
+    opts?: Opts<{
+      data:      RoUint8Array,
+      programId: Address,
+      lamports:  SOL extends KindWithAtomic ? Amount<SOL> : Lamports,
+    }>
+   ) => {
+    const {
+      data      = new Uint8Array(),
+      programId = systemProgramId,
+      lamports  = minimumBalanceForRentExemption(data.length),
+    } = opts ?? {};
+
     forkSvm.setAccount(address, {
       owner:      programId,
       executable: false,
-      lamports:   ( solKind
-                    ? (lamports as Amount<SOL & KindWithAtomic>).in("atomic")
-                    : lamports
-                  ) as Lamports,
+      lamports:   inLamports(lamports),
       space:      BigInt(data.length),
       data,
     });
+  };
 
-  const createAta = <const K extends KindWithAtomic | undefined = undefined>(
-    owner:   Address,
-    mint:    Address,
-    balance: K extends KindWithAtomic ? Amount<K> : bigint
+  type MintOpts<K extends KindWithAtomic | undefined = undefined> =
+    Opts<{ mintAuthority: Address }> & (
+      K extends KindWithAtomic
+      ? { supply: Amount<K> }
+      : Opts<{ supply: bigint; decimals: number }>
+    );
+
+  const createMint = <const K extends KindWithHumanAndAtomic | undefined = undefined>(
+    address: Address,
+    opts?:   MintOpts<K>
   ) => {
-    const ata = findAta({ owner, mint });
+    let { mintAuthority, supply } = opts ?? {};
+    let decimals: number;
+
+    if (typeof supply === "undefined" || typeof supply === "bigint") {
+      supply   ??= 0n;
+      decimals ??= 9;
+    }
+    else {
+      decimals = getDecimals(supply.kind, { of: "human", in: "atomic" });
+      supply = supply.in("atomic");
+    }
+
+    supply = supply as bigint;
+
+    createAccount(address, {
+      data: serialize(mintAccountLayout(), {
+        mintAuthority,
+        supply,
+        decimals,
+        isInitialized: true,
+        freezeAuthority: undefined
+      }),
+    });
+  };
+
+  const createTokenAccount = <const K extends KindWithAtomic | undefined = undefined>(
+    address:   Address,
+    mint:      Address,
+    owner:     Address,
+    balance:   K extends KindWithAtomic ? Amount<K> : bigint,
+  ) => {
     const tokenAccountSize = calcStaticSize(tokenAccountLayout())!;
     const rentExempt = minimumBalanceForRentExemption(tokenAccountSize) as any;
     const solBalance = (
@@ -109,11 +161,9 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
       : rentExempt
     ) as SOL extends KindWithAtomic ? Amount<SOL> : Lamports;
 
-    createAccount(
-      ata,
-      serialize(
-        tokenAccountLayout((balance as any).kind as K, solKind),
-        {
+    createAccount(address, {
+      data: serialize(
+        tokenAccountLayout((balance as any).kind as K, solKind), {
           mint,
           owner,
           amount:          balance,
@@ -124,9 +174,18 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
           closeAuthority:  undefined,
         } as TokenAccount<K, SOL>
       ),
-      tokenProgramId,
-      solBalance,
-    );
+      programId: tokenProgramId,
+      lamports: solBalance,
+    });
+  };
+
+  const createAta = <const K extends KindWithAtomic | undefined = undefined>(
+    owner:   Address,
+    mint:    Address,
+    balance: K extends KindWithAtomic ? Amount<K> : bigint
+  ) => {
+    const ata = findAta({ owner, mint });
+    createTokenAccount(ata, mint, owner, balance);
     return ata;
   };
 
@@ -182,14 +241,18 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
     createTx(instructions, feePayer, alts).then(tx => sendTx(tx, feePayer, additionalSigners));
 
   return {
-    createAccount,
-    createAta,
+    minimumBalanceForRentExemption,
     getAccountInfo,
     getDeserializedAccount,
     getMint,
     getTokenAccount,
     getBalance,
     getTokenBalance,
+    airdrop,
+    createAccount,
+    createMint,
+    createTokenAccount,
+    createAta,
     createTx,
     sendTx,
     createAndSendTx,

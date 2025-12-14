@@ -87,9 +87,14 @@ export class ForkSvm {
       withBuiltins:        boolean;
     }>,
   ) {
-    const { url, withDefaultPrograms = true, withSysvars = true, withBuiltins = true } =
-      settings ?? {};
-    this.settings  = { url: url ?? undefined, withDefaultPrograms, withSysvars, withBuiltins };
+    const {
+      url                 = undefined,
+      withDefaultPrograms = true,
+      withSysvars         = true,
+      withBuiltins        = true,
+    } = settings ?? {};
+
+    this.settings  = { url, withDefaultPrograms, withSysvars, withBuiltins };
     this.rpc       = url !== undefined ? createSolanaRpc(url) : undefined;
     this.liteSvm   = new LiteSVM();
     this.addresses = { known: new Set(), special: new Set() };
@@ -119,14 +124,7 @@ export class ForkSvm {
     const accounts = Object.fromEntries(
       [...this.addresses.known.keys()].map(addr => [addr, this.liteSvm.getAccount(addr)])
     );
-    const timestamp           = this.latestTimestamp();
-    const liteClock           = this.liteSvm.getClock();
-    const slot                = liteClock.slot;
-    const epoch               = liteClock.epoch;
-    const epochStartTimestamp = liteClock.epochStartTimestamp;
-    const leaderScheduleEpoch = liteClock.leaderScheduleEpoch;
-    const clock = { timestamp, slot, epoch, epochStartTimestamp, leaderScheduleEpoch };
-    return { settings, accounts, clock };
+    return { settings, accounts, clock: this.getClock() };
   }
 
   load(snapshot: Snapshot) {
@@ -151,14 +149,7 @@ export class ForkSvm {
       else
         this.setAccount(addr as Address, acc);
 
-    const { clock } = snapshot;
-    const liteClock = this.liteSvm.getClock();
-    liteClock.unixTimestamp       = BigInt(clock.timestamp.getTime() / 1000);
-    liteClock.slot                = clock.slot;
-    liteClock.epoch               = clock.epoch;
-    liteClock.epochStartTimestamp = clock.epochStartTimestamp;
-    liteClock.leaderScheduleEpoch = clock.leaderScheduleEpoch;
-    this.liteSvm.setClock(liteClock);
+    this.setClock(snapshot.clock);
 
     for (const [addr, acc] of executables)
       this.setAccount(addr, acc);
@@ -170,10 +161,10 @@ export class ForkSvm {
   }
 
   latestTimestamp = () =>
-    new Date(Number(this.liteSvm.getClock().unixTimestamp) * 1000);
+    this.getClock().timestamp;
 
   latestSlot = () =>
-    this.liteSvm.getClock().slot;
+    this.getClock().slot;
 
   getTransaction = (signature: RoUint8Array) =>
     this.liteSvm.getTransaction(signature as Uint8Array);
@@ -184,6 +175,34 @@ export class ForkSvm {
   expireBlockhash = () =>
     this.liteSvm.expireBlockhash();
 
+  getClock(): Clock {
+    const liteClock = this.liteSvm.getClock();
+    return {
+      timestamp:           new Date(Number(liteClock.unixTimestamp) * 1000),
+      slot:                liteClock.slot,
+      epoch:               liteClock.epoch,
+      epochStartTimestamp: liteClock.epochStartTimestamp,
+      leaderScheduleEpoch: liteClock.leaderScheduleEpoch,
+    };
+  }
+
+  setClock(clock: Partial<Clock>) {
+    const cur = this.liteSvm.getClock();
+    const {
+      timestamp           = new Date(Number(cur.unixTimestamp) * 1000),
+      slot                = cur.slot,
+      epoch               = cur.epoch,
+      epochStartTimestamp = cur.epochStartTimestamp,
+      leaderScheduleEpoch = cur.leaderScheduleEpoch,
+    } = clock;
+    cur.unixTimestamp       = BigInt(timestamp.getTime() / 1000);
+    cur.slot                = slot;
+    cur.epoch               = epoch;
+    cur.epochStartTimestamp = epochStartTimestamp;
+    cur.leaderScheduleEpoch = leaderScheduleEpoch;
+    this.liteSvm.setClock(cur);
+  }
+
   async advanceToNow() {
     if (this.rpc) {
       const [slot, epochInfo] = await Promise.all([
@@ -191,21 +210,15 @@ export class ForkSvm {
         this.rpc.getEpochInfo().send(),
       ]);
 
-      const clock = this.liteSvm.getClock();
-      clock.slot                = slot;
-      clock.unixTimestamp       = await this.rpc.getBlockTime(slot).send();
-      clock.epoch               = epochInfo.epoch;
-      clock.epochStartTimestamp = clock.unixTimestamp;
-      clock.leaderScheduleEpoch = epochInfo.epoch + 1n;
-      this.liteSvm.setClock(clock);
+      const blockTime = await this.rpc.getBlockTime(slot).send();
+      this.setClock({
+        timestamp:           new Date(Number(blockTime) * 1000),
+        slot,
+        epoch:               epochInfo.epoch,
+        epochStartTimestamp: blockTime,
+        leaderScheduleEpoch: epochInfo.epoch + 1n,
+      });
     }
-  }
-
-  setClock(timestamp?: Date, slot?: bigint) {
-    const clock = this.liteSvm.getClock();
-    clock.slot = slot ?? clock.slot;
-    clock.unixTimestamp = timestamp ? BigInt(timestamp.getTime() / 1000) : clock.unixTimestamp;
-    this.liteSvm.setClock(clock);
   }
 
   async sendTransaction(tx: Transaction): Promise<TransactionMetadata> {

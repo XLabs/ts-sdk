@@ -1,106 +1,26 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import type { Address, Lamports, Signature, Blockhash } from "@solana/kit";
-import { serialize } from "@xlabs-xyz/binary-layout";
 import {
   address,
-  createTransactionMessage,
-  setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash,
   signTransaction,
   compileTransaction,
   getBase64EncodedWireTransaction,
-  generateKeyPair,
   generateKeyPairSigner,
-  getAddressFromPublicKey,
 } from "@solana/kit";
 import { base58 } from "@xlabs-xyz/utils";
 import { Amount, kind } from "@xlabs-xyz/amount";
 import { Sol, sol } from "@xlabs-xyz/common";
 import {
+  type SvmClient,
   tokenProgramId,
   systemProgramId,
-  mintAccountLayout,
-  tokenAccountLayout,
   findAta,
   nativeMint,
 } from "@xlabs-xyz/svm";
 import { ForkSvm } from "../src/forkSvm.js";
 import { assertTxSuccess, createCurried } from "../src/utils.js";
-
-// Helper to create a test account
-const createTestAccount = (lamports: bigint, data: Uint8Array, owner: Address) => ({
-  lamports: lamports as Lamports, // Lamports is a nominal type
-  data,
-  owner,
-  executable: false,
-  space: BigInt(data.length),
-});
-
-// Helper to create a mint account
-const createMintAccount = (mintAuthority: Address, supply = 0n) => {
-  const layout = mintAccountLayout();
-  const data = serialize(layout, {
-    mintAuthority,
-    supply,
-    decimals: 9,
-    isInitialized: true,
-    freezeAuthority: undefined, // cOptionItem custom property transforms undefined
-  });
-  return createTestAccount(1000000n, data, tokenProgramId);
-};
-
-// Helper to create a token account
-const createTokenAccount = (mint: Address, owner: Address, amount: bigint) => {
-  const layout = tokenAccountLayout();
-  const data = serialize(layout, {
-    mint,
-    owner,
-    amount: amount as Lamports, // Token amount uses Lamports type
-    delegate: undefined, // cOptionItem custom property transforms undefined
-    state: "Initialized",
-    isNative: undefined, // cOptionItem custom property transforms undefined
-    delegatedAmount: 0n as Lamports,
-    closeAuthority: undefined, // cOptionItem custom property transforms undefined
-  });
-  return createTestAccount(1000000n, data, tokenProgramId);
-};
-
-// Helper to create a signed transaction (without sending)
-const createSignedTransaction =
-  async (forkSvm: ForkSvm, payer: Address, keypair: CryptoKeyPair) => {
-    const blockhashStr = forkSvm.latestBlockhash();
-    const slot = forkSvm.latestSlot();
-    const blockhash = { blockhash: blockhashStr as Blockhash, lastValidBlockHeight: slot };
-    const message = createTransactionMessage({ version: "legacy" });
-    const messageWithPayer = setTransactionMessageFeePayer(payer, message);
-    const messageWithLifetime = setTransactionMessageLifetimeUsingBlockhash(blockhash, messageWithPayer);
-    const compiled = compileTransaction(messageWithLifetime);
-    return await signTransaction([keypair], compiled);
-  };
-
-// Helper to create a transaction and get its signature
-const createAndSendTransaction =
-  async (forkSvm: ForkSvm, payer: Address, keypair: CryptoKeyPair) => {
-    const signed = await createSignedTransaction(forkSvm, payer, keypair);
-    const tx = await forkSvm.sendTransaction(signed);
-    return { tx, meta: tx, signature: base58.encode(tx.signature()) as Signature };
-  };
-
-// Helper to create a base64-encoded wire transaction for RPC calls
-const createWireTransaction =
-  async (forkSvm: ForkSvm, payer: Address, keypair: CryptoKeyPair) => {
-    const signed = await createSignedTransaction(forkSvm, payer, keypair);
-    return getBase64EncodedWireTransaction(signed);
-  };
-
-// Helper to setup token accounts
-const setupTokenAccounts =
-  async (forkSvm: ForkSvm, payer: Address, mint: Address, tokenAccount: Address, amount: bigint) => {
-    await forkSvm.airdrop(payer, 1000000n);
-    forkSvm.setAccount(mint, createMintAccount(payer));
-    forkSvm.setAccount(tokenAccount, createTokenAccount(mint, payer, amount));
-  };
 
 // Helper to test unavailable field access
 const testUnavailableField = (
@@ -117,11 +37,11 @@ const testUnavailableField = (
         // This should throw immediately on any property access
         if (val && typeof val === 'object') {
           // Try accessing as array index
-          const _ = val[0];
+          let _ = val[0];
           // Try accessing as object property
-          const __ = val.test;
+          _ = val.test;
           // Try accessing length (common for arrays)
-          const ___ = val.length;
+          _ = val.length;
         }
       },
       (err: Error) => {
@@ -134,15 +54,15 @@ const testUnavailableField = (
 describe("ForkSvm", () => {
   let forkSvm: ForkSvm;
   let payer: Address;
-  let payerKeypair: CryptoKeyPair;
+  let payerSigner: Awaited<ReturnType<typeof generateKeyPairSigner>>;
   let mint: Address;
   let tokenAccount: Address;
   const nonExistentAddress = address("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM");
 
   beforeEach(async () => {
     forkSvm = new ForkSvm();
-    payerKeypair = await generateKeyPair();
-    payer = await getAddressFromPublicKey(payerKeypair.publicKey);
+    payerSigner = await generateKeyPairSigner();
+    payer = payerSigner.address;
     mint = address("mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So");
     tokenAccount = findAta({ owner: payer, mint });
   });
@@ -168,7 +88,8 @@ describe("ForkSvm", () => {
     it("should save and load a snapshot", async () => {
       const balance = 10n**9n;
       await forkSvm.airdrop(payer, balance);
-      forkSvm.setAccount(mint, createMintAccount(payer));
+      const curried = createCurried(forkSvm);
+      curried.createMint(mint, { mintAuthority: payer });
 
       const snapshot = forkSvm.save();
       assert(snapshot.settings);
@@ -191,8 +112,8 @@ describe("ForkSvm", () => {
     });
 
     it("should return account info for multiple addresses", async () => {
-      const keypair2 = await generateKeyPair();
-      const payer2 = await getAddressFromPublicKey(keypair2.publicKey);
+      const signer2 = await generateKeyPairSigner();
+      const payer2 = signer2.address;
       await forkSvm.airdrop(payer, 1000n);
       await forkSvm.airdrop(payer2, 2000n);
 
@@ -204,7 +125,10 @@ describe("ForkSvm", () => {
     });
 
     it("should return token account data", async () => {
-      await setupTokenAccounts(forkSvm, payer, mint, tokenAccount, 1000n);
+      await forkSvm.airdrop(payer, 1000000n);
+      const curried = createCurried(forkSvm);
+      curried.createMint(mint, { mintAuthority: payer });
+      curried.createAta(payer, mint, 1000n);
 
       const account = await forkSvm.getAccount(tokenAccount);
       assert(account);
@@ -226,7 +150,7 @@ describe("ForkSvm", () => {
     it("should set the clock timestamp and slot", () => {
       const timestamp = new Date("2024-01-01T00:00:00Z");
       const slot = 100n;
-      forkSvm.setClock(timestamp, slot);
+      forkSvm.setClock({ timestamp, slot });
 
       const clockTimestamp = forkSvm.latestTimestamp();
       const clockSlot = forkSvm.latestSlot();
@@ -239,7 +163,8 @@ describe("ForkSvm", () => {
   describe("sendTransaction", () => {
     it("should send a transaction and return metadata", async () => {
       await forkSvm.airdrop(payer, 1000000n);
-      const { tx } = await createAndSendTransaction(forkSvm, payer, payerKeypair);
+      const curried = createCurried(forkSvm);
+      const tx = await curried.createAndSendTx([], payerSigner);
 
       assert(tx);
       assert(typeof tx.signature === 'function');
@@ -251,7 +176,14 @@ describe("ForkSvm", () => {
   describe("simulateTransaction", () => {
     it("should simulate a transaction and return metadata", async () => {
       await forkSvm.airdrop(payer, 1000000n);
-      const signed = await createSignedTransaction(forkSvm, payer, payerKeypair);
+      const curried = createCurried(forkSvm);
+      const tx = await curried.createTx([], payerSigner);
+      const blockhashStr = forkSvm.latestBlockhash();
+      const slot = forkSvm.latestSlot();
+      const blockhash = { blockhash: blockhashStr as Blockhash, lastValidBlockHeight: slot };
+      const txWithLifetime = setTransactionMessageLifetimeUsingBlockhash(blockhash, tx);
+      const compiled = compileTransaction(txWithLifetime);
+      const signed = await signTransaction([payerSigner.keyPair], compiled);
 
       const result = await forkSvm.simulateTransaction(signed);
       assert(result);
@@ -263,7 +195,7 @@ describe("ForkSvm", () => {
   });
 
   describe("RPC client", () => {
-    let rpc: any; // RPC client type is complex, using any for tests
+    let rpc: SvmClient;
 
     beforeEach(() => {
       rpc = forkSvm.createForkRpc();
@@ -287,7 +219,10 @@ describe("ForkSvm", () => {
       });
 
       it("should return token account info", async () => {
-        await setupTokenAccounts(forkSvm, payer, mint, tokenAccount, 5000n);
+        await forkSvm.airdrop(payer, 1000000n);
+        const curried = createCurried(forkSvm);
+        curried.createMint(mint, { mintAuthority: payer });
+        curried.createAta(payer, mint, 5000n);
 
         const accountInfo = await rpc.getAccountInfo(tokenAccount, { encoding: "base64" }).send();
 
@@ -298,8 +233,8 @@ describe("ForkSvm", () => {
 
     describe("getMultipleAccounts", () => {
       it("should return multiple account infos via RPC", async () => {
-        const keypair2 = await generateKeyPair();
-        const payer2 = await getAddressFromPublicKey(keypair2.publicKey);
+        const signer2 = await generateKeyPairSigner();
+        const payer2 = signer2.address;
         await forkSvm.airdrop(payer, 1000n);
         await forkSvm.airdrop(payer2, 2000n);
 
@@ -342,7 +277,15 @@ describe("ForkSvm", () => {
     describe("sendTransaction", () => {
       it("should send a transaction and return a signature", async () => {
         await forkSvm.airdrop(payer, 1000000n);
-        const wireTx = await createWireTransaction(forkSvm, payer, payerKeypair);
+        const curried = createCurried(forkSvm);
+        const tx = await curried.createTx([], payerSigner);
+        const blockhashStr = forkSvm.latestBlockhash();
+        const slot = forkSvm.latestSlot();
+        const blockhash = { blockhash: blockhashStr as Blockhash, lastValidBlockHeight: slot };
+        const txWithLifetime = setTransactionMessageLifetimeUsingBlockhash(blockhash, tx);
+        const compiled = compileTransaction(txWithLifetime);
+        const signed = await signTransaction([payerSigner.keyPair], compiled);
+        const wireTx = getBase64EncodedWireTransaction(signed);
 
         const signature = await rpc.sendTransaction(wireTx, { encoding: "base64" }).send();
 
@@ -358,7 +301,15 @@ describe("ForkSvm", () => {
     describe("simulateTransaction", () => {
       it("should simulate a successful transaction", async () => {
         await forkSvm.airdrop(payer, 1000000n);
-        const wireTx = await createWireTransaction(forkSvm, payer, payerKeypair);
+        const curried = createCurried(forkSvm);
+        const tx = await curried.createTx([], payerSigner);
+        const blockhashStr = forkSvm.latestBlockhash();
+        const slot = forkSvm.latestSlot();
+        const blockhash = { blockhash: blockhashStr as Blockhash, lastValidBlockHeight: slot };
+        const txWithLifetime = setTransactionMessageLifetimeUsingBlockhash(blockhash, tx);
+        const compiled = compileTransaction(txWithLifetime);
+        const signed = await signTransaction([payerSigner.keyPair], compiled);
+        const wireTx = getBase64EncodedWireTransaction(signed);
 
         const result = await rpc.simulateTransaction(wireTx, { encoding: "base64" }).send();
 
@@ -369,7 +320,15 @@ describe("ForkSvm", () => {
 
       it("should include innerInstructions when requested", async () => {
         await forkSvm.airdrop(payer, 1000000n);
-        const wireTx = await createWireTransaction(forkSvm, payer, payerKeypair);
+        const curried = createCurried(forkSvm);
+        const tx = await curried.createTx([], payerSigner);
+        const blockhashStr = forkSvm.latestBlockhash();
+        const slot = forkSvm.latestSlot();
+        const blockhash = { blockhash: blockhashStr as Blockhash, lastValidBlockHeight: slot };
+        const txWithLifetime = setTransactionMessageLifetimeUsingBlockhash(blockhash, tx);
+        const compiled = compileTransaction(txWithLifetime);
+        const signed = await signTransaction([payerSigner.keyPair], compiled);
+        const wireTx = getBase64EncodedWireTransaction(signed);
 
         const result = await rpc.simulateTransaction(wireTx, {
           encoding: "base64",
@@ -384,10 +343,11 @@ describe("ForkSvm", () => {
     describe("getTransaction", () => {
       it("should return transaction metadata for a sent transaction", async () => {
         await forkSvm.airdrop(payer, 1000000n);
-        const { signature } = await createAndSendTransaction(forkSvm, payer, payerKeypair);
+        const curried = createCurried(forkSvm);
+        const tx = await curried.createAndSendTx([], payerSigner);
+        const signature = base58.encode(tx.signature()) as Signature;
 
-        const response = await rpc.getTransaction(signature, { encoding: "base64" }).send();
-        const result = (response as any).value ?? response;
+        const result = await rpc.getTransaction(signature, { encoding: "base64" }).send();
 
         assert(result);
         assert.strictEqual(result.slot, forkSvm.latestSlot());
@@ -408,7 +368,9 @@ describe("ForkSvm", () => {
 
       beforeEach(async () => {
         await forkSvm.airdrop(payer, 1000000n);
-        const { signature } = await createAndSendTransaction(forkSvm, payer, payerKeypair);
+        const curried = createCurried(forkSvm);
+        const tx = await curried.createAndSendTx([], payerSigner);
+        const signature = base58.encode(tx.signature()) as Signature;
         const response = await rpc.getTransaction(signature, { encoding: "base64" }).send();
         assert(response, "getTransaction should return a result");
         // Handle both wrapped and unwrapped responses
@@ -469,14 +431,14 @@ describe("ForkSvm", () => {
     describe("encoding validation", () => {
       it("should reject non-base64 encoding for getAccountInfo", async () => {
         await assert.rejects(
-          () => rpc.getAccountInfo(payer, { encoding: "base58" } as any).send(),
+          () => rpc.getAccountInfo(payer, { encoding: "base58" }).send(),
           /Unsupported encoding: base58, expected "base64"/
         );
       });
 
       it("should reject non-base64 encoding for getMultipleAccounts", async () => {
         await assert.rejects(
-          () => rpc.getMultipleAccounts([payer], { encoding: "base58" } as any).send(),
+          () => rpc.getMultipleAccounts([payer], { encoding: "base58" }).send(),
           /Unsupported encoding: base58, expected "base64"/
         );
       });
@@ -530,12 +492,11 @@ describe("forkSvm utils", () => {
     it("should create accounts with bigint lamports", async () => {
       const { address: addr } = await generateKeyPairSigner();
 
-      curried.createAccount(
-        addr,
-        new Uint8Array(0),
-        systemProgramId,
-        1_000_000n as Lamports
-      );
+      curried.createAccount(addr, {
+        data: new Uint8Array(0),
+        programId: systemProgramId,
+        lamports: 1_000_000n as Lamports,
+      });
 
       const account = await forkSvm.getAccount(addr);
       assert(account);
@@ -575,12 +536,11 @@ describe("forkSvm utils", () => {
       const { address: addr } = await generateKeyPairSigner();
       const curried = createCurried(forkSvm, Sol);
 
-      curried.createAccount(
-        addr,
-        new Uint8Array(0),
-        systemProgramId,
-        sol(1),
-      );
+      curried.createAccount(addr, {
+        data: new Uint8Array(0),
+        programId: systemProgramId,
+        lamports: sol(1),
+      });
 
       const account = await forkSvm.getAccount(addr);
       assert(account);
@@ -611,7 +571,7 @@ describe("forkSvm utils", () => {
   describe("createAta", () => {
     it("should create ATA with bigint balance", async () => {
       const { address: owner } = await generateKeyPairSigner();
-      forkSvm.setAccount(mint, createMintAccount(owner));
+      curried.createMint(mint, { mintAuthority: owner });
 
       const ata = curried.createAta(owner, mint, 1000n);
 
@@ -622,7 +582,7 @@ describe("forkSvm utils", () => {
 
     it("should create native SOL ATA with rent + balance", async () => {
       const { address: owner } = await generateKeyPairSigner();
-      forkSvm.setAccount(nativeMint, createMintAccount(owner));
+      curried.createMint(nativeMint, { mintAuthority: owner });
 
       const tokenBalance = 500_000n;
       const ata = curried.createAta(owner, nativeMint, tokenBalance);
@@ -637,7 +597,7 @@ describe("forkSvm utils", () => {
   describe("getTokenBalance", () => {
     it("should get token balance as bigint", async () => {
       const { address: owner } = await generateKeyPairSigner();
-      forkSvm.setAccount(mint, createMintAccount(owner));
+      curried.createMint(mint, { mintAuthority: owner });
 
       const tokenAmount = 42_000_000n;
       const ata = curried.createAta(owner, mint, tokenAmount);
@@ -648,7 +608,7 @@ describe("forkSvm utils", () => {
 
     it("should get token balance as Amount with kind", async () => {
       const { address: owner } = await generateKeyPairSigner();
-      forkSvm.setAccount(mint, createMintAccount(owner));
+      curried.createMint(mint, { mintAuthority: owner });
 
       const atomicAmount = 42_000_000n;
       const ata = curried.createAta(owner, mint, atomicAmount);
@@ -701,10 +661,37 @@ describe("forkSvm utils", () => {
     });
   });
 
+  describe("createMint", () => {
+    it("should create mint with bigint supply and default decimals", async () => {
+      const { address: owner } = await generateKeyPairSigner();
+      curried.createMint(mint, { mintAuthority: owner, supply: 1_000_000n });
+
+      const mintData = await curried.getMint()(mint);
+
+      assert(mintData);
+      assert.strictEqual(mintData.mintAuthority, owner);
+      assert.strictEqual(mintData.supply, 1_000_000n as Lamports);
+      assert.strictEqual(mintData.decimals, 9);
+    });
+
+    it("should create mint with Amount supply and calculate decimals from kind", async () => {
+      const { address: owner } = await generateKeyPairSigner();
+      const supplyAmount = Amount.from(1000, TestToken, "TOK");
+      curried.createMint(mint, { mintAuthority: owner, supply: supplyAmount });
+
+      const mintData = await curried.getMint()(mint);
+
+      assert(mintData);
+      assert.strictEqual(mintData.mintAuthority, owner);
+      assert.strictEqual(mintData.decimals, 6);
+      assert.strictEqual(mintData.supply, supplyAmount.in("atomic"));
+    });
+  });
+
   describe("getMint and getTokenAccount", () => {
     it("should get mint account", async () => {
       const { address: owner } = await generateKeyPairSigner();
-      forkSvm.setAccount(mint, createMintAccount(owner, 1_000_000n));
+      curried.createMint(mint, { mintAuthority: owner, supply: 1_000_000n });
 
       const mintData = await curried.getMint()(mint);
 
@@ -716,7 +703,7 @@ describe("forkSvm utils", () => {
 
     it("should get token account", async () => {
       const { address: owner } = await generateKeyPairSigner();
-      forkSvm.setAccount(mint, createMintAccount(owner));
+      curried.createMint(mint, { mintAuthority: owner });
 
       const ata = curried.createAta(owner, mint, 500n);
 
