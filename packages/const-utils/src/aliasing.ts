@@ -105,3 +105,9 @@ export type ApplyAliases<IofA extends object, Union> =
   BestPartition<PartitionAliases<IofA, Union>> extends infer R extends Union
   ? R
   : never;
+
+// ----
+
+//can (sometimes) be used to prevent intellisense from expanding a type when it already has an alias
+//especially when combined with interface X extends Opaque<T> {}
+export type Opaque<T> = T & {};

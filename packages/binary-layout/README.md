@@ -6,13 +6,13 @@ A must-have for anyone unfortunate enough to work with binary data in TypeScript
 
 ## Highlights
 
-* **Light-Weight**: effectively zero dependency (only const-utils)
+* **Light-Weight**: almost zero dependency (only const-utils)
 * **Pure**: just TypeScript, no code generation or meta-compilation
 * **Declarative**: DRY spec for types, (de)serialization, and automatic discrimination
 * **Composable**: nested and repeatable structures
 * **Flexible**: conditional/branching structures, fixed fields, and endian support
 * **Modern**: strong, customizable types and (readonly) `UInt8Array`-based ([no more `Buffer`](https://sindresorhus.com/blog/goodbye-nodejs-buffer))
-* **Efficient**: minimizes memory allocations
+* **Efficient**: minimizes memory allocations/copies
 
 ## Showcase Example
 
@@ -598,22 +598,3 @@ The `setEndianness` utility function recursively sets the endianness of all item
 * No custom property on *array* and *switch* items (but workaround via wrapping in a `bytes` item).
 
 * Currently can't deserialize using a discriminator directly (requires users to write boiler-plate).
-
-## History/Renamings
-
-This library originated [here](https://github.com/nonergodic/sdkv2/blob/main/1-base-layer/src/utils/layout.ts), was then moved over and developed further [here](https://github.com/wormhole-foundation/wormhole-sdk-ts/tree/main/core/base/src/utils/layout), before finally being extracted into its own standalone repository.
-
-Some issues were fixed, some features added, and the following renamings were applied:
-
-| Old                  | New                |
-| -------------------- | ------------------ |
-| LayoutToType         | DeriveType         |
-| serializeLayout      | serialize          |
-| deserializeLayout    | deserialize        |
-| layoutDiscriminator  | buildDiscriminator |
-| calcLayoutSize       | calcSize           |
-| calcStaticLayoutSize | calcStaticSize     |
-
-and also
-* `s/LayoutItem/Item/g`
-* `s/OfLayout/Of/g`
