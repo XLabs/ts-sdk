@@ -1,5 +1,7 @@
 # @xlabs-xyz/utils
 
+[![npm version](https://img.shields.io/npm/v/@xlabs-xyz/utils.svg)](https://www.npmjs.com/package/@xlabs-xyz/utils)
+
 Common runtime utilities: encoding, hashing, JSON with bigint support, and simple assertions.
 
 - [Encoding](#encoding) – hex, base58, base64, bech32, bignum, bytes

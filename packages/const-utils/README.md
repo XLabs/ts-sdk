@@ -1,5 +1,7 @@
 # @xlabs-xyz/const-utils
 
+[![npm version](https://img.shields.io/npm/v/@xlabs-xyz/const-utils.svg)](https://www.npmjs.com/package/@xlabs-xyz/const-utils)
+
 Type-safe utilities for readonly and const data structures, including bidirectional mappings, array transformations, and object manipulation. Also includes general-purpose typing utilities – const/readonly is the primary theme, but not the only one.
 
 - [Type Utilities](#type-utilities) – core types, mutability helpers, `RoUint8Array`

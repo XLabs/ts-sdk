@@ -1,5 +1,7 @@
 # @xlabs-xyz/amount
 
+[![npm version](https://img.shields.io/npm/v/@xlabs-xyz/amount.svg)](https://www.npmjs.com/package/@xlabs-xyz/amount)
+
 Type-safe handling of amounts with units and arbitrary-precision arithmetic.
 
 ## Why?

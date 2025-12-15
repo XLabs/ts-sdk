@@ -1,5 +1,7 @@
 # @xlabs-xyz/svm
 
+[![npm version](https://img.shields.io/npm/v/@xlabs-xyz/svm.svg)](https://www.npmjs.com/package/@xlabs-xyz/svm)
+
 Solana/SVM utilities built on [@solana/kit](https://www.npmjs.com/package/@solana/kit). Provides type-safe RPC helpers, PDA derivation, binary layouts for standard accounts, and instruction composition.
 
 - [Client Utilities](#client-utilities) – RPC wrappers with optional `Amount` integration

@@ -1,5 +1,7 @@
 # @xlabs-xyz/fork-svm
 
+[![npm version](https://img.shields.io/npm/v/@xlabs-xyz/fork-svm.svg)](https://www.npmjs.com/package/@xlabs-xyz/fork-svm)
+
 Anvil for Solana: a local SVM fork with lazy account fetching. Built on [LiteSVM](https://github.com/LiteSVM/litesvm) and [@solana/kit](https://www.npmjs.com/package/@solana/kit).
 
 ## Why?

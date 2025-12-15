@@ -1,5 +1,7 @@
 # @xlabs-xyz/common
 
+[![npm version](https://img.shields.io/npm/v/@xlabs-xyz/common.svg)](https://www.npmjs.com/package/@xlabs-xyz/common)
+
 Glue layer that ties together the lower-level packages (`const-utils`, `utils`, `binary-layout`, `amount`) into practical building blocks.
 
 - [Layout Items](#layout-items) – binary-layout items that serialize/deserialize to Amount types
