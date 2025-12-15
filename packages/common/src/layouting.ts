@@ -95,8 +95,8 @@ type NumericType<S extends number> =
   : bigint;
 
 type TransformFunc<S extends number> = {
-  to: (val: NumericType<S>) => Rationalish;
-  from: (val: Rational) => NumericType<S>;
+  to:   (val: NumericType<S>) => Rationalish;
+  from: (val: Rational)       => NumericType<S>;
 };
 
 type SizedTransformFunc<S extends number> = (size: S) => TransformFunc<S>;
@@ -110,7 +110,7 @@ function numericReturn<S extends number>(size: S): TransformFunc<S>["from"] {
 
 type SizedReturnItem<S extends number, T> = {
   binary: "uint";
-  size: S;
+  size:   S;
   custom: CustomConversion<NumericType<S>, T>;
 } extends infer R extends Item ? R : never;
 
@@ -121,21 +121,21 @@ type AmountReturnItem<S extends number, K extends Kind> = SizedReturnItem<S, Amo
 // 3. finally it is converted into an amount of the given kind and unit
 //and likewise but inverted for the opposite direction
 export function amountItem<S extends number, const K extends KindWithAtomic>(
-  size: S,
-  kind: K, //uses "atomic" by default
+  size:                   S,
+  kind:                   K, //uses "atomic" by default
   unitSymbolOrTransform?: SymbolsOf<K> | TransformFuncUnion<S>,
 ): AmountReturnItem<S, K>;
 export function amountItem<S extends number, const K extends Kind>(
-  size: S,
-  kind: K,
+  size:       S,
+  kind:       K,
   unitSymbol: SymbolsOf<K>,
   transform?: TransformFuncUnion<S>,
 ): AmountReturnItem<S, K>;
 export function amountItem<S extends number, const K extends Kind>(
-  size: S,
-  kind: K,
+  size:                   S,
+  kind:                   K,
   unitSymbolOrTransform?: SymbolsOf<K> | TransformFuncUnion<S>,
-  transform?: TransformFuncUnion<S>,
+  transform?:             TransformFuncUnion<S>,
 ): AmountReturnItem<S, K> {
   let unitSymbol: SymbolsOf<K> | undefined;
   if (transform)
@@ -176,7 +176,7 @@ type ConversionReturnItem<S extends number, NK extends Kind, DK extends Kind> =
 
 type AmountItem = {
   binary: "uint";
-  size: number;
+  size:   number;
   custom: CustomConversion<any, Amount<any>>;
 };
 
@@ -185,14 +185,14 @@ type AmountItem = {
 //  workaround
 export function conversionItem<const AI extends AmountItem, const DK extends KindWithHuman>(
   amntItem: AI,
-  denKind: DK, //uses "human" unit by default
+  denKind:  DK, //uses "human" unit by default
 ): AI extends AmountReturnItem<infer S extends number, infer NK>
   ? ConversionReturnItem<S, NK, DK>
   : never;
 export function conversionItem<const AI extends AmountItem, const DK extends Kind>(
   amntItem: AI,
-  denKind: DK,
-  denUnit: SymbolsOf<DK>,
+  denKind:  DK,
+  denUnit:  SymbolsOf<DK>,
 ): AI extends AmountReturnItem<infer S extends number, infer NK>
   ? ConversionReturnItem<S, NK, DK>
   : never;
@@ -200,18 +200,18 @@ export function conversionItem<
   S extends number,
   const NK extends Kind,
   const DK extends KindWithHuman,
->(size: S,
-  numKind: NK,
-  numUnit: SymbolsOf<NK>,
-  denKind: DK, //uses "human" unit by default
+>(size:       S,
+  numKind:    NK,
+  numUnit:    SymbolsOf<NK>,
+  denKind:    DK, //uses "human" unit by default
   transform?: TransformFuncUnion<S>,
 ): ConversionReturnItem<S, NK, DK>;
 export function conversionItem<S extends number, const NK extends Kind, const DK extends Kind>(
-  size: S,
-  numKind: NK,
-  numUnit: SymbolsOf<NK>,
-  denKind: DK,
-  denUnit: SymbolsOf<DK>,
+  size:       S,
+  numKind:    NK,
+  numUnit:    SymbolsOf<NK>,
+  denKind:    DK,
+  denUnit:    SymbolsOf<DK>,
   transform?: TransformFuncUnion<S>,
 ): ConversionReturnItem<S, NK, DK>;
 export function conversionItem(
@@ -284,23 +284,24 @@ export function conversionItem(
   return { ...amntItem, custom };
 }
 
+//y = mx + b convention
 export function linearTransform<S extends number>(
-  direction: "to->from" | "from->to",
-  coefficient: Rationalish,
-  constant?: Rationalish,
+  x:  "stored" | "converted",
+  m:  Rationalish,
+  b?: Rationalish,
 ): SizedTransformFunc<S> {
-  coefficient = Rational.from(coefficient);
-  constant = Rational.from(constant ?? 0);
+  m = Rational.from(m);
+  b = Rational.from(b ?? 0);
   return (size: S) => {
     const numRet = numericReturn(size);
-    return direction === "to->from"
+    return x === "stored"
       ? {
-        to: (val: NumericType<S>) => Rational.from(val).mul(coefficient).add(constant),
-        from: (val: Rational) => numRet(val.sub(constant).div(coefficient)),
+        to:   (val: NumericType<S>) => Rational.from(val).mul(m).add(b),
+        from: (val: Rational)       => numRet(val.sub(b).div(m)),
       }
       : {
-        to: (val: NumericType<S>) => Rational.from(val).sub(constant).div(coefficient),
-        from: (val: Rational) => numRet(val.mul(coefficient).add(constant)),
+        to:   (val: NumericType<S>) => Rational.from(val).sub(b).div(m),
+        from: (val: Rational)       => numRet(val.mul(m).add(b)),
       };
   };
 }

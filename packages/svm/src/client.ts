@@ -23,7 +23,7 @@ import { isArray, mapTo } from "@xlabs-xyz/const-utils";
 import type { Layout, DeriveType } from "@xlabs-xyz/binary-layout";
 import { deserialize } from "@xlabs-xyz/binary-layout";
 import type { Amount, KindWithAtomic } from "@xlabs-xyz/amount";
-import { toAmountIfKind } from "@xlabs-xyz/common";
+import { fromAtomicIfKind } from "@xlabs-xyz/common";
 import type {
   MintAccount,
   TokenAccount,
@@ -79,7 +79,7 @@ const toAccountInfo = <const KS extends KindWithAtomic | undefined = undefined>(
   accInfo
   ? { ...accInfo,
       data: base64.encode(accInfo.data[0]) as Uint8Array,
-      lamports: toAmountIfKind(accInfo.lamports, solKind) as LamportsType<KS>,
+      lamports: fromAtomicIfKind(accInfo.lamports, solKind) as LamportsType<KS>,
     } : undefined;
 
 const encb64 = { encoding: "base64" } as const;

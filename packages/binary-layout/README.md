@@ -1,4 +1,4 @@
-# Layout Library
+# @xlabs-xyz/binary-layout
 
 The Layout library implements a TypeScript-native, declarative DSL for binary data serialization/deserialization that supports strong typing and efficient, automatic discrimination of data formats.
 

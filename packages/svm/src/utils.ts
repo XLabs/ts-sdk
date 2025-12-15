@@ -18,7 +18,7 @@ import type { Layout, DeriveType } from "@xlabs-xyz/binary-layout";
 import { serialize } from "@xlabs-xyz/binary-layout";
 import { bytes, base58, sha256, ed25519, throws } from "@xlabs-xyz/utils";
 import { type KindWithAtomic, Amount } from "@xlabs-xyz/amount";
-import { toAmountIfKind } from "@xlabs-xyz/common";
+import { fromAtomicIfKind } from "@xlabs-xyz/common";
 import {
   associatedTokenProgramId,
   tokenProgramId,
@@ -126,7 +126,7 @@ export const anchorEmitCpiDiscriminator = discriminatorOf("anchor", "event").rev
 export const minimumBalanceForRentExemption =
   <const K extends KindWithAtomic | undefined = undefined>(size: number, kind?: K):
     K extends KindWithAtomic ? Amount<K> : Lamports =>
-      toAmountIfKind(BigInt(emptyAccountSize + size) * lamportsPerByte, kind) as any;
+      fromAtomicIfKind(BigInt(emptyAccountSize + size) * lamportsPerByte, kind) as any;
 
 export const curryMinimumBalanceForRentExemption =
   <const K extends KindWithAtomic | undefined = undefined>(kind?: K) =>

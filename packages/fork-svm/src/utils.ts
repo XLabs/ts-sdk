@@ -18,7 +18,7 @@ import { base58, definedOrThrow } from "@xlabs-xyz/utils";
 import { serialize, deserialize, calcStaticSize } from "@xlabs-xyz/binary-layout";
 import type { KindWithAtomic, KindWithHumanAndAtomic } from "@xlabs-xyz/amount";
 import { Amount, getDecimals } from "@xlabs-xyz/amount";
-import { toAmountIfKind } from "@xlabs-xyz/common";
+import { fromAtomicIfKind } from "@xlabs-xyz/common";
 import type { Ix, TokenAccount, LamportsType, AmountType, TxMsgWithFeePayer } from "@xlabs-xyz/svm";
 import {
   addressLookupTableLayout,
@@ -74,14 +74,14 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
   // Wrap to provide zero fallback for undefined balances
   const getBalanceRaw = curryGetBalance(solKind)(rpc);
   const getBalance = <const A extends MaybeArray<Address>>(address: A) =>
-    getBalanceRaw(address).then(b => b ?? toAmountIfKind(0n, solKind)) as
+    getBalanceRaw(address).then(b => b ?? fromAtomicIfKind(0n, solKind)) as
       Promise<MapArrayness<A, LamportsType<SOL>>>;
 
   const getTokenBalanceRaw = curryGetTokenBalance(rpc);
   const getTokenBalance =
     <const KT extends KindWithAtomic | undefined = undefined>(tokenKind?: KT) =>
       <const A extends MaybeArray<Address>>(tokenAccs: A) =>
-        getTokenBalanceRaw(tokenKind)(tokenAccs).then(b => b ?? toAmountIfKind(0n, tokenKind)) as
+        getTokenBalanceRaw(tokenKind)(tokenAccs).then(b => b ?? fromAtomicIfKind(0n, tokenKind)) as
           Promise<MapArrayness<A, AmountType<KT>>>;
 
   const createAccount = (
@@ -170,7 +170,7 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
           state:           "Initialized",
           isNative:        mint === nativeMint ? rentExempt : undefined,
           delegate:        undefined,
-          delegatedAmount: toAmountIfKind(0n, (balance as any).kind),
+          delegatedAmount: fromAtomicIfKind(0n, (balance as any).kind),
           closeAuthority:  undefined,
         } as TokenAccount<K, SOL>
       ),
