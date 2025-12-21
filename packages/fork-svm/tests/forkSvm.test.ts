@@ -519,6 +519,18 @@ describe("forkSvm utils", () => {
       assert.strictEqual(balance, 0n);
     });
 
+    it("should return 0n for non-existent accounts in array", async () => {
+      const existing = await generateKeyPairSigner();
+      const nonExistent = await generateKeyPairSigner();
+      await forkSvm.airdrop(existing.address, 5_000_000n);
+
+      const balances = await curried.getBalance([existing.address, nonExistent.address]);
+
+      assert(Array.isArray(balances));
+      assert.strictEqual(balances[0], 5_000_000n);
+      assert.strictEqual(balances[1], 0n);
+    });
+
     it("should create and send transactions", async () => {
       const signer = await generateKeyPairSigner();
       await forkSvm.airdrop(signer.address, 10n ** 9n);
@@ -624,6 +636,21 @@ describe("forkSvm utils", () => {
 
       const balance = await curried.getTokenBalance()(addr);
       assert.strictEqual(balance, 0n);
+    });
+
+    it("should return 0 for non-existent token accounts in array", async () => {
+      const { address: owner } = await generateKeyPairSigner();
+      const nonExistent = await generateKeyPairSigner();
+      curried.createMint(mint, { mintAuthority: owner });
+
+      const tokenAmount = 42_000_000n;
+      const ata = curried.createAta(owner, mint, tokenAmount);
+
+      const balances = await curried.getTokenBalance()([ata, nonExistent.address]);
+
+      assert(Array.isArray(balances));
+      assert.strictEqual(balances[0], tokenAmount);
+      assert.strictEqual(balances[1], 0n);
     });
   });
 
