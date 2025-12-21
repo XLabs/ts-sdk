@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@xlabs-xyz/const-utils",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "author": "xLabs",
   "license": "Apache-2.0",
   "description": "Type-safe utilities for readonly and const data structures, including bidirectional mappings, array transformations, and object manipulation, along with general typing utilities",
