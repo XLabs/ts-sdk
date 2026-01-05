@@ -40,7 +40,7 @@ maxTransfer.toJSON(); //"1.5 ETH"
 const ethPrice = usd(3_000).per(ETH);
 
 // ... and apply them in a type-safe manner
-const maxInUsd = maxTransfer.div(ethPrice); // == usd(4_500)
+const maxInUsd = maxTransfer.mul(ethPrice); // == usd(4_500)
 
 // gives you the atomic unit (wei, sats,...) no matter if ETH, BTC, ...
 amount.in("atomic");
@@ -87,7 +87,7 @@ const USD = kind(
 const usd = Amount.ofKind(USD);
 
 const ethPrice = usd(3000).per(ETH);
-eth(0.5).mul(price);  // $1,500
+eth(0.5).mul(ethPrice);  // $1,500
 ```
 
 ## Core Concepts
@@ -182,7 +182,7 @@ Options:
 - `spacing`: `"spaced"` (default) or `"compact"`
 - `plural`: alternate symbol when value ≠ 1
 
-The first symbol for each oom/scale is always the default unit for display. Other unts can be used for convenience ("¢" prints nicely but is impossible to type, while "c" is easy) or when a certain symbol is desired (as in the example).
+The first symbol for each oom/scale is always the default unit for display. Other units can be used for convenience ("¢" prints nicely but is impossible to type, while "c" is easy) or when a certain symbol is desired (as in the example).
 
 #### Multi-System Kinds
 
