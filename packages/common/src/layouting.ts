@@ -186,15 +186,15 @@ type AmountItem = {
 export function conversionItem<const AI extends AmountItem, const DK extends KindWithHuman>(
   amntItem: AI,
   denKind:  DK, //uses "human" unit by default
-): AI extends AmountReturnItem<infer S extends number, infer NK>
-  ? ConversionReturnItem<S, NK, DK>
+): AI extends AmountReturnItem<AI["size"], infer NK>
+  ? ConversionReturnItem<AI["size"], NK, DK>
   : never;
 export function conversionItem<const AI extends AmountItem, const DK extends Kind>(
   amntItem: AI,
   denKind:  DK,
   denUnit:  SymbolsOf<DK>,
-): AI extends AmountReturnItem<infer S extends number, infer NK>
-  ? ConversionReturnItem<S, NK, DK>
+): AI extends AmountReturnItem<AI["size"], infer NK>
+  ? ConversionReturnItem<AI["size"], NK, DK>
   : never;
 export function conversionItem<
   S extends number,
@@ -225,48 +225,15 @@ export function conversionItem(
   if (typeof amntItemOrSize === "number") {
     const size = amntItemOrSize;
     const numKind = denKindOrNumKind;
-    let numUnit = denUnitOrNumUnit!;
-    denKind = denKind!;
-    let denUnit;
+    const numUnit = denUnitOrNumUnit!;
+    let denUnit: any;
     if (typeof transformOrDenUnit === "string")
       denUnit = transformOrDenUnit;
-    else {
-      denUnit = "human";
+    else
       transform = transformOrDenUnit;
-    }
 
-    if (typeof transform === "function")
-      transform = transform(size);
-
-    //atomic units are special because .toUnit() returns a bigint but we always want a Rational
-    if (numUnit === "atomic")
-      numUnit = numKind.atomic!;
-    if (denUnit === "atomic")
-      denUnit = denKind.atomic!;
-
-    const denAmnt = Amount.from(1, denKind, denUnit);
-
-    const toFunc = (val: Rationalish): Conversion<Kind, Kind> =>
-      Conversion.from(Amount.from(val, numKind, numUnit), denAmnt);
-
-    const fromFunc = (conv: Conversion<Kind, Kind>): Rational =>
-      denAmnt.div(conv).in(numUnit);
-
-    const custom = typeof transform === "object"
-      ? {
-        to: (val: NumericType<number>) =>
-          toFunc(val),
-        from: (conv: Conversion<Kind, Kind>): NumericType<number> =>
-          numericReturn(size)(fromFunc(conv)),
-      }
-      : {
-        to: (val: NumericType<number>) =>
-          toFunc((transform as TransformFunc<number>).to(val)),
-        from: (conv: Conversion<Kind, Kind>): NumericType<number> =>
-          (transform as TransformFunc<number>).from(fromFunc(conv)),
-      };
-
-    return { binary: "uint", size, custom };
+    const amntItem = amountItem(size, numKind, numUnit, transform);
+    return conversionItem(amntItem, denKind!, denUnit);
   }
 
   const amntItem = amntItemOrSize;
@@ -278,7 +245,7 @@ export function conversionItem(
     to: (val: NumericType<number>): Conversion<Kind, Kind> =>
       Conversion.from(amntItem.custom.to(val), denAmnt),
     from: (conv: Conversion<Kind, Kind>): NumericType<number> =>
-      amntItem.custom.from(denAmnt.div(conv)),
+      amntItem.custom.from(denAmnt.mul(conv)),
   };
 
   return { ...amntItem, custom };
