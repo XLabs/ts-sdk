@@ -18,8 +18,8 @@ import { base58, definedOrThrow } from "@xlabs-xyz/utils";
 import { serialize, deserialize, calcStaticSize } from "@xlabs-xyz/binary-layout";
 import type { KindWithAtomic, KindWithHumanAndAtomic } from "@xlabs-xyz/amount";
 import { Amount, getDecimals } from "@xlabs-xyz/amount";
-import { fromAtomicIfKind } from "@xlabs-xyz/common";
-import type { Ix, TokenAccount, LamportsType, AmountType, TxMsgWithFeePayer } from "@xlabs-xyz/svm";
+import { type AmountOrAtomic, fromAtomicIfKind } from "@xlabs-xyz/common";
+import type { Ix, TokenAccount, LamportsType, TxMsgWithFeePayer } from "@xlabs-xyz/svm";
 import {
   addressLookupTableLayout,
   tokenProgramId,
@@ -84,7 +84,7 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
       <const A extends MaybeArray<Address>>(tokenAccs: A) =>
         getTokenBalanceRaw(tokenKind)(tokenAccs).then(
           b => mapTo(b)(v => v ?? fromAtomicIfKind(0n, tokenKind))
-        ) as Promise<MapArrayness<A, AmountType<KT>>>;
+        ) as Promise<MapArrayness<A, AmountOrAtomic<KT>>>;
 
   const createAccount = (
     address:   Address,

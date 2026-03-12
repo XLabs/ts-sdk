@@ -23,7 +23,7 @@ import { isArray, mapTo } from "@xlabs-xyz/const-utils";
 import type { Layout, DeriveType } from "@xlabs-xyz/binary-layout";
 import { deserialize } from "@xlabs-xyz/binary-layout";
 import type { Amount, KindWithAtomic } from "@xlabs-xyz/amount";
-import { fromAtomicIfKind } from "@xlabs-xyz/common";
+import { type AmountOrAtomic, fromAtomicIfKind } from "@xlabs-xyz/common";
 import type {
   MintAccount,
   TokenAccount,
@@ -47,9 +47,6 @@ export type TxWithLifetime = Parameters<typeof compileTransaction>[0] & Transact
 
 export type LamportsType<KS extends KindWithAtomic | undefined> =
   KS extends KindWithAtomic ? Amount<KS> : Lamports;
-
-export type AmountType<K extends KindWithAtomic | undefined> =
-  K extends KindWithAtomic ? Amount<K> : bigint;
 
 export type AccountInfo<KS extends KindWithAtomic | undefined = undefined> = {
   executable: boolean;
@@ -151,10 +148,10 @@ export const getTokenBalance = <
   client:     SvmClient,
   tokenAccs:  A,
   tokenKind?: K,
-): Promise<MapArrayness<A, AmountType<K> | undefined>> =>
+): Promise<MapArrayness<A, AmountOrAtomic<K> | undefined>> =>
   getDeserializedAccount(client, tokenAccs, tokenAccountLayout(tokenKind))
     .then(res => mapTo(res)(maybeToken =>
-      (maybeToken as { amount: AmountType<K> } | undefined)?.amount,
+      (maybeToken as { amount: AmountOrAtomic<K> } | undefined)?.amount,
     )) as any;
 
 export const getDurableNonceAccount = <
