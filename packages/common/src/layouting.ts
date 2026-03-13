@@ -251,14 +251,31 @@ export function conversionItem(
   return { ...amntItem, custom };
 }
 
+type TransformX = "stored" | "converted";
 //y = mx + b convention
 export function linearTransform<S extends number>(
-  x:  "stored" | "converted",
+  x:  TransformX,
   m:  Rationalish,
   b?: Rationalish,
-): SizedTransformFunc<S> {
-  m = Rational.from(m);
-  b = Rational.from(b ?? 0);
+): SizedTransformFunc<S>;
+export function linearTransform<S extends number>(
+  size: S,
+  x:  TransformX,
+  m:  Rationalish,
+  b?: Rationalish,
+): TransformFunc<S>;
+export function linearTransform<S extends number>(
+  sizeOrX: S | TransformX,
+  xOrM:    Rationalish | TransformX,
+  mOrB?:   Rationalish,
+  maybeB?: Rationalish,
+): any {
+  if (typeof sizeOrX === "number")
+    return linearTransform<S>(xOrM as TransformX, mOrB!, maybeB)(sizeOrX);
+
+  const x = sizeOrX;
+  const m = Rational.from(xOrM);
+  const b = Rational.from(mOrB ?? 0);
   return (size: S) => {
     const numRet = numericReturn(size);
     return x === "stored"

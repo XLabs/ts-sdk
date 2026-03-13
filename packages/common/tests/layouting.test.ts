@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { serialize, deserialize } from "@xlabs-xyz/binary-layout";
 import { bignum } from "@xlabs-xyz/utils";
 
-import { Amount, Conversion } from "@xlabs-xyz/amount";
+import { Amount, Conversion, Rational } from "@xlabs-xyz/amount";
 
 import { Usd, Btc, Eth } from "../src/units.js";
 import { amountItem, conversionItem, linearTransform } from "../src/layouting.js";
@@ -154,6 +154,76 @@ describe("conversionItem", () => {
       assert.deepStrictEqual(encoded, bignum.toBytes(5_000_000, 4));
       const decoded = deserialize(layout, encoded);
       assert.strictEqual(decoded.in("$", "BTC").toString(), "50000");
+    });
+  });
+});
+
+// ---- linearTransform tests ----
+
+describe("linearTransform", () => {
+  describe("3-param (returns SizedTransformFunc)", () => {
+    it("stored mode: to = val * m, from = val / m", () => {
+      const tf = linearTransform("stored", 100)(4);
+      assert.strictEqual(tf.to(5).toString(), "500");
+      assert.strictEqual(tf.from(Rational.from(500)), 5);
+    });
+
+    it("converted mode: to = val / m, from = val * m", () => {
+      const tf = linearTransform("converted", 100)(4);
+      assert.strictEqual(tf.to(500).toString(), "5");
+      assert.strictEqual(tf.from(Rational.from(5)), 500);
+    });
+
+    it("stored mode with offset b: to = val * m + b", () => {
+      const tf = linearTransform("stored", 10, 3)(4);
+      assert.strictEqual(tf.to(7).toString(), "73"); // 7*10 + 3
+      assert.strictEqual(tf.from(Rational.from(73)), 7); // (73-3)/10
+    });
+
+    it("converted mode with offset b: to = (val - b) / m", () => {
+      const tf = linearTransform("converted", 10, 3)(4);
+      assert.strictEqual(tf.to(73).toString(), "7"); // (73-3)/10
+      assert.strictEqual(tf.from(Rational.from(7)), 73); // 7*10 + 3
+    });
+  });
+
+  describe("4-param (returns TransformFunc directly)", () => {
+    it("stored mode: equivalent to 3-param version", () => {
+      const tf = linearTransform(4, "stored", 100);
+      assert.strictEqual(tf.to(5).toString(), "500");
+      assert.strictEqual(tf.from(Rational.from(500)), 5);
+    });
+
+    it("converted mode: equivalent to 3-param version", () => {
+      const tf = linearTransform(4, "converted", 100);
+      assert.strictEqual(tf.to(500).toString(), "5");
+      assert.strictEqual(tf.from(Rational.from(5)), 500);
+    });
+
+    it("stored mode with offset b", () => {
+      const tf = linearTransform(4, "stored", 10, 3);
+      assert.strictEqual(tf.to(7).toString(), "73");
+      assert.strictEqual(tf.from(Rational.from(73)), 7);
+    });
+
+    it("converted mode with offset b", () => {
+      const tf = linearTransform(4, "converted", 10, 3);
+      assert.strictEqual(tf.to(73).toString(), "7");
+      assert.strictEqual(tf.from(Rational.from(7)), 73);
+    });
+
+    it("4-param round-trips through amountItem identically to 3-param", () => {
+      const layout3 = amountItem(4, Usd, "$", linearTransform("stored", 100));
+      const layout4 = amountItem(4, Usd, "$", linearTransform(4, "stored", 100));
+      const amount = Amount.from(500, Usd);
+
+      const enc3 = serialize(layout3, amount);
+      const enc4 = serialize(layout4, amount);
+      assert.deepStrictEqual(enc3, enc4);
+
+      const dec3 = deserialize(layout3, enc3);
+      const dec4 = deserialize(layout4, enc4);
+      assert.strictEqual(dec3.in("$").toString(), dec4.in("$").toString());
     });
   });
 });
