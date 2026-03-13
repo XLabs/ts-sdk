@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { type RoUint8Array} from "@xlabs-xyz/const-utils";
+
 import {
   type Layout,
   serialize,
@@ -96,7 +98,7 @@ describe('Basic Layout Tests', () => {
 
   it("should handle string conversion", () => {
     const stringConversion = {
-      to: (encoded: Uint8Array) => new TextDecoder().decode(encoded),
+      to: (encoded: RoUint8Array) => new TextDecoder().decode(encoded),
       from: (decoded: string) => new TextEncoder().encode(decoded),
     } as const;
 

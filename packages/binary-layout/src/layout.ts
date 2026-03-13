@@ -12,7 +12,6 @@ export type PrimitiveType = NumType | RoUint8Array;
 
 //used wherever an object is expected that sprung from the DeriveType type defined below
 export type LayoutObject = { readonly [key: string]: any };
-
 export const binaryLiterals = ["int", "uint", "bytes", "array", "switch"] as const;
 export type BinaryLiterals = typeof binaryLiterals[number];
 export type Endianness = "little" | "big";
@@ -28,12 +27,12 @@ export type NumSizeToPrimitive<Size extends number> =
   ? bigint
   : number | bigint;
 
-export type FixedConversion<FromType extends PrimitiveType | LayoutObject, ToType> = {
+export type FixedConversion<FromType, ToType> = {
   readonly to:   ToType,
   readonly from: FromType,
 };
 
-export type CustomConversion<FromType extends PrimitiveType | LayoutObject, ToType> = {
+export type CustomConversion<FromType, ToType> = {
   readonly to:   (val: FromType) => ToType,
   readonly from: (val: ToType  ) => FromType,
 };
@@ -84,7 +83,7 @@ export interface FlexPureBytes extends ItemBase<"bytes"> {
 };
 
 export interface FlexLayoutBytes extends ItemBase<"bytes"> {
-  readonly custom?: FixedConversion<LayoutObject, any> | CustomConversion<LayoutObject, any>,
+  readonly custom?: FixedConversion<any, any> | CustomConversion<any, any>,
   readonly layout: Layout,
 }
 
@@ -186,9 +185,9 @@ type ItemToType<II extends Item> =
 //---NumItem---
 type NumItemToType<I extends NumItem> =
   //we must infer FromType here to make sure we "hit" the correct type of the conversion
-  I["custom"] extends CustomConversion<infer _From extends NumType, infer To>
+  I["custom"] extends CustomConversion<infer _From, infer To>
   ? To
-  : I["custom"] extends FixedConversion<infer _From extends NumType, infer To>
+  : I["custom"] extends FixedConversion<infer _From, infer To>
   ? To
   : I["custom"] extends undefined
   ? NumSizeToPrimitive<I["size"]>
@@ -199,9 +198,9 @@ type NumItemToType<I extends NumItem> =
 //---BytesItem---
 type BytesItemToType<I extends BytesItem> =
   I extends { readonly layout: Layout }
-  ? I["custom"] extends CustomConversion<infer _From extends LayoutObject, infer To>
+  ? I["custom"] extends CustomConversion<infer _From, infer To>
     ? To
-    : I["custom"] extends FixedConversion<infer _From extends LayoutObject, infer To>
+    : I["custom"] extends FixedConversion<infer _From, infer To>
     ? To
     : DeriveType<I["layout"]>
   : I["custom"] extends CustomConversion<RoUint8Array, infer To>
