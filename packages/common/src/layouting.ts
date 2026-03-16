@@ -94,12 +94,18 @@ type NumericType<S extends number> =
   ? number | bigint
   : bigint;
 
-type TransformFunc<S extends number> = {
-  to:   (val: NumericType<S>) => Rationalish;
+//R allows narrowing of to return type to only Rational which makes TransformFunc
+//  a valid CustomConversion. This way, users of amountItem can continue to use the permissive
+//  Rationalish type (which will be wrapped into a Rational any as part of the amountItem
+//  function) while linearTransform can emit CustomConversion compatible transformations
+type TransformFunc<S extends number, R extends Rationalish = Rationalish> = {
+  to:   (val: NumericType<S>) => R;
   from: (val: Rational)       => NumericType<S>;
 };
 
-type SizedTransformFunc<S extends number> = (size: S) => TransformFunc<S>;
+type SizedTransformFunc<S extends number, R extends Rationalish = Rationalish> =
+  (size: S) => TransformFunc<S, R>;
+
 type TransformFuncUnion<S extends number> = TransformFunc<S> | SizedTransformFunc<S>;
 
 function numericReturn<S extends number>(size: S): TransformFunc<S>["from"] {
@@ -257,13 +263,13 @@ export function linearTransform<S extends number>(
   x:  TransformX,
   m:  Rationalish,
   b?: Rationalish,
-): SizedTransformFunc<S>;
+): SizedTransformFunc<S, Rational>;
 export function linearTransform<S extends number>(
   size: S,
   x:  TransformX,
   m:  Rationalish,
   b?: Rationalish,
-): TransformFunc<S>;
+): TransformFunc<S, Rational>;
 export function linearTransform<S extends number>(
   sizeOrX: S | TransformX,
   xOrM:    Rationalish | TransformX,
