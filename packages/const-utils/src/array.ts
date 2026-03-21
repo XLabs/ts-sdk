@@ -7,11 +7,19 @@ import type {
   HeadTail,
 } from "./typing.js";
 
-export function isArray<T, U>(val: T | RoArray<U>): val is RoArray<U>;
-export function isArray<T, U>(val: T | U[]): val is U[];
-export function isArray(val: unknown): val is RoArray<unknown> {
+// export function isArray<T, U>(val: Exclude<T, unknown[]> | U[]): val is U[];
+// export function isArray<T, U extends Exclude<T, RoArray>>(val: U | Extract<T, RoArray>): val is Extract<T, RoArray>;
+export function isArray<T>(val: T | RoArray<T>): val is RoArray<T>;
+export function isArray<T>(val: T): val is Extract<T, RoArray>;
+export function isArray(val: unknown): boolean {
   return Array.isArray(val);
 }
+
+// const test = undefined as undefined | number | bigint | readonly number[] | bigint []; //| readonly string[] | Date[];
+// // const test = undefined as undefined | number | bigint | readonly number[] | bigint [] | readonly string[] | Date[];
+// if (isArray(test)) {
+//   const bla = test;
+// }
 
 //works across realms
 export function isUint8Array<T>(value: T): value is T extends RoUint8Array ? T : T & Uint8Array {
