@@ -4,6 +4,8 @@ import type {
   Column,
   Entries,
   TupleZip,
+  Brand,
+  Unbrand,
 } from "@xlabs-xyz/const-utils";
 import { column, entries, zip } from "@xlabs-xyz/const-utils";
 import type {
@@ -22,6 +24,11 @@ import type {
   SymbolsOf,
 } from "@xlabs-xyz/amount";
 import { type AmountFromArgs, Amount, Conversion, Rational } from "@xlabs-xyz/amount";
+
+export const brandConversion= <B extends Brand<unknown, string>>() => ({
+  to:   (v: Unbrand<B>): B => v as any,
+  from: (v: B): Unbrand<B> => v as any,
+} as const);
 
 export const hashItem = {
   binary: "bytes", size: 32,
