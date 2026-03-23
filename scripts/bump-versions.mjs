@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -16,18 +16,13 @@ if (!newVersion) {
   process.exit(1);
 }
 
-const packages = [
-  'packages/amount',
-  'packages/binary-layout',
-  'packages/common',
-  'packages/const-utils',
-  'packages/fork-svm',
-  'packages/svm',
-  'packages/utils',
-];
+const packagesDir = join(rootDir, 'packages');
+const packages = readdirSync(packagesDir, { withFileTypes: true })
+  .filter(d => d.isDirectory() && existsSync(join(packagesDir, d.name, 'package.json')))
+  .map(d => d.name);
 
 for (const pkg of packages) {
-  const pkgPath = join(rootDir, pkg, 'package.json');
+  const pkgPath = join(packagesDir, pkg, 'package.json');
   const pkgJson = JSON.parse(readFileSync(pkgPath, 'utf-8'));
   pkgJson.version = newVersion;
   
