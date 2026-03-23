@@ -5,6 +5,7 @@ ignoredBuiltDependencies:
   - esbuild
 
 catalog:
+  "viem": "^2.47.6"
   "@solana/kit": "^5.1.0"
   "@solana/rpc-spec": "^5.1.0"
   "@solana/rpc-spec-types": "^5.1.0"

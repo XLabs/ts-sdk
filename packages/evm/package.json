@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@xlabs-xyz/evm",
+  "version": "5.4.0",
+  "author": "xLabs",
+  "license": "Apache-2.0",
+  "description": "evm utils",
+  "keywords": [
+    "Ethereum, EVM"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xlabs/ts-sdk"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "types": "./dist/index.d.ts",
+    "import": "./dist/index.js",
+    "default": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "!*.test.*",
+    "README.md"
+  ],
+  "scripts": {
+    "prepublishOnly": "pnpm test && pnpm build",
+    "build": "tsc",
+    "test": "tsx --test tests/**/*.test.ts",
+    "clean": "rm -rf ./dist"
+  },
+  "peerDependencies": {
+    "@xlabs-xyz/const-utils": "^5.4.0",
+    "@xlabs-xyz/binary-layout": "^5.4.0",
+    "@xlabs-xyz/common": "^5.4.0",
+    "@xlabs-xyz/amount": "^5.4.0",
+    "@xlabs-xyz/utils": "^5.4.0",
+    "viem": "*"
+  },
+  "devDependencies": {
+    "@xlabs-xyz/const-utils": "workspace:*",
+    "@xlabs-xyz/binary-layout": "workspace:*",
+    "@xlabs-xyz/common": "workspace:*",
+    "@xlabs-xyz/amount": "workspace:*",
+    "@xlabs-xyz/utils": "workspace:*",
+    "viem": "catalog:"
+  }
+}
