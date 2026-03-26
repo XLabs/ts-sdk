@@ -11,6 +11,7 @@ A collection of TypeScript utilities for building robust, type-safe blockchain a
 | [`@xlabs-xyz/binary-layout`](./packages/binary-layout) | Declarative DSL for binary serialization/deserialization with strong typing |
 | [`@xlabs-xyz/amount`](./packages/amount) | Type-safe amounts with units and arbitrary-precision arithmetic |
 | [`@xlabs-xyz/common`](./packages/common) | Glue layer tying lower-level packages into practical building blocks |
+| [`@xlabs-xyz/evm`](./packages/evm) | Ethereum/EVM utilities: ERC20 client, Multicall3 queries, EIP-2612 permits, binary layouts |
 | [`@xlabs-xyz/svm`](./packages/svm) | Solana/SVM utilities and helpers |
 | [`@xlabs-xyz/fork-svm`](./packages/fork-svm) | Anvil-style local SVM fork with lazy account fetching for testing |
 
@@ -18,8 +19,8 @@ A collection of TypeScript utilities for building robust, type-safe blockchain a
 
 ```
 const-utils ──┬── utils ──────────┐
-              ├── amount ─────────┼── common ── svm ── fork-svm
-              └── binary-layout ──┘
+              ├── amount ─────────┼── common ──┬── svm ── fork-svm
+              └── binary-layout ──┘            └── evm
 ```
 
 ## Package Summaries
@@ -58,6 +59,13 @@ Glue layer that ties the lower-level packages together:
 - **Layout Items**: Binary-layout items that serialize to/from `Amount`, timestamps, etc.
 - **Units**: Predefined kinds for currencies (USD, BTC, ETH, SOL), percentages, duration, bytes
 - **Helpers**: Unit definition utilities for creating custom kinds
+
+### evm
+Ethereum/EVM utilities built on [viem](https://www.npmjs.com/package/viem):
+- **Layout Primitives**: Word-aligned binary layouts, function selectors, storage slot computation
+- **Batched Queries**: Multicall3-based read batching with block-consistent results
+- **ERC20 Client**: Compose approve, transfer, permit, and query call data
+- **EIP-712 / EIP-2612**: Domain reconstruction and permit message composition
 
 ### svm
 Solana/SVM utilities built on `@solana/kit`:
