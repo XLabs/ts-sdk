@@ -15,12 +15,10 @@ import {
   parseAbi,
 } from "viem";
 import type { RoUint8Array, RoArray, RoPair } from "@xlabs-xyz/const-utils";
-import { MaybeArray, isArray } from "@xlabs-xyz/const-utils";
+import { MaybeArray, isArray, isUint8Array, throwOnNullish } from "@xlabs-xyz/const-utils";
 import type { Layout, DeriveType } from "@xlabs-xyz/binary-layout";
 import { serialize, deserialize } from "@xlabs-xyz/binary-layout";
 import { hex } from "@xlabs-xyz/utils";
-import { timestampItem } from "@xlabs-xyz/common";
-import { selectorLayout, uint256Item } from "./layouting.js";
 
 // ---- ABI string type utilities ----
 // Signatures omit the `function` keyword: "balanceOf(address) view returns (uint256)"
@@ -152,59 +150,108 @@ const processResult = (
   return call.allowFailure ? { success: true, data: decoded } : decoded;
 };
 
-// ---- Multicall3 ----
+// ---- queryEvm ----
 
 const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
 
-const mc3Call = (funcSig: string) => ({
-  target:       MULTICALL3,
-  allowFailure: false,
-  callData:     hex.encode(serialize(selectorLayout(funcSig)([]), {}), true),
-}) as const;
+async function aggregate3(viemClient: PublicClient, calls: RoArray<ReadCall>, blockHash: HexStr) {
+  const callData = encodeFunctionData({
+    abi:          multicall3Abi,
+    functionName: "aggregate3",
+    args: [calls.map(c => ({
+      target:       c.to,
+      allowFailure: true,
+      callData:     encodeCallData(c.data),
+    }))],
+  });
 
-const mc3TimestampItem   = timestampItem("uint", 32);
-const mc3BlockNumberItem = uint256Item;
+  const returnData = await viemClient.request({
+    method: "eth_call",
+    params: [{ to: MULTICALL3, data: callData }, { blockHash, requireCanonical: true }],
+  });
 
-const getBlockTimestampCall = mc3Call("getCurrentBlockTimestamp()");
-const getBlockNumberCall    = mc3Call("getBlockNumber()");
-
-// ---- queryEvm ----
+  return decodeFunctionResult({
+    abi:          multicall3Abi,
+    functionName: "aggregate3",
+    data:         returnData,
+  });
+}
 
 export type EvmQuery = ReturnType<typeof queryEvm>;
 
-export const queryEvm = (viemClient: PublicClient) =>
-  async <const A extends MaybeArray<ReadCall>>(
+const MAX_RETRIES = 3;
+
+//resolves a block tag or number to a canonical block hash, retrying on reorgs.
+async function resolveBlock(
+  viemClient: PublicClient,
+  calls:      RoArray<ReadCall>,
+  block:      bigint | "latest" | "finalized",
+) {
+  for (let attempt = 0; attempt < MAX_RETRIES; ++attempt) {
+    const blockInfo = await viemClient.getBlock(
+      typeof block === "bigint" ? { blockNumber: block } : { blockTag: block }
+    );
+
+    const blockHash = throwOnNullish(blockInfo.hash, "Block hash is null (pending block)");
+
+    const results = await aggregate3(viemClient, calls, blockHash).catch(() => undefined);
+    if (results === undefined)
+      continue;
+
+    return {
+      results,
+      blockInfo: {
+        number:    blockInfo.number,
+        hash:      hex.decode(blockHash),
+        timestamp: new Date(Number(blockInfo.timestamp) * 1000),
+      },
+    };
+  }
+  throw new Error(`Querying canonical block failed ${MAX_RETRIES} times in a row`);
+}
+
+export const queryEvm = (viemClient: PublicClient) => {
+  const processResults = <const A extends MaybeArray<ReadCall>>(
+    callS: A,
+    calls: RoArray<ReadCall>,
+    raw:   ReturnType<typeof decodeFunctionResult<typeof multicall3Abi, "aggregate3">>,
+  ) => (
+    isArray(callS)
+    ? calls.map((c, i) => processResult(c, raw[i]!))
+    : processResult(calls[0]!, raw[0]!)
+  ) as QueryResult<A>;
+
+  // When the caller provides a block hash, we use it directly — if it's no longer canonical,
+  // requireCanonical will cause the eth_call to fail, which is the correct behavior since
+  // the caller explicitly asked for that specific block.
+  function query<const A extends MaybeArray<ReadCall>>(
     callS: A & CheckCalls<A>,
-    block: bigint | "latest" | "finalized" = "latest"
-  ): Promise<[QueryResult<A>, bigint, Date]> => {
+    block: RoUint8Array,
+  ): Promise<QueryResult<A>>;
+  // When the caller specifies a tag or number, a reorg between getBlock and eth_call can
+  // cause the fetched hash to become non-canonical. In that case we retry with a fresh block.
+  function query<const A extends MaybeArray<ReadCall>>(
+    callS: A & CheckCalls<A>,
+    block?: bigint | "latest" | "finalized",
+  ): Promise<[QueryResult<A>, bigint, RoUint8Array, Date]>;
+  function query<const A extends MaybeArray<ReadCall>>(
+    callS: A & CheckCalls<A>,
+    block: RoUint8Array | bigint | "latest" | "finalized" = "latest",
+  ) {
     const calls: RoArray<ReadCall> = isArray(callS) ? callS : [callS];
-    const knownBlock = typeof block === "bigint";
 
-    const results = await viemClient.readContract({
-      address:      MULTICALL3,
-      abi:          multicall3Abi,
-      functionName: "aggregate3",
-      args: [[
-        ...calls.map(c => ({
-          target:       c.to,
-          allowFailure: true,
-          callData:     encodeCallData(c.data),
-        })),
-        getBlockTimestampCall,
-        ...(knownBlock ? [] : [getBlockNumberCall]),
-      ]],
-      ...(knownBlock ? { blockNumber: block } : { blockTag: block }),
-    });
+    return isUint8Array(block)
+      ? aggregate3(viemClient, calls, hex.encode(block, true))
+          .then(results =>processResults(callS, calls, results))
+      : resolveBlock(viemClient, calls, block)
+          .then(({ results, blockInfo }) =>
+            [ processResults(callS, calls, results),
+              blockInfo.number,
+              blockInfo.hash,
+              blockInfo.timestamp
+            ]
+          );
+  }
 
-    const blocktime = deserializeHex(mc3TimestampItem, results[calls.length]!.returnData);
-    const blocknumber =
-      knownBlock ? block : deserializeHex(mc3BlockNumberItem, results.at(-1)!.returnData);
-
-    const resultS = (
-      isArray(callS)
-      ? calls.map((c, i) => processResult(c, results[i]!))
-      : processResult(calls[0]!, results[0]!)
-    ) as QueryResult<A>;
-
-    return [resultS, blocknumber, blocktime];
-  };
+  return query;
+};
