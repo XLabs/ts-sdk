@@ -589,6 +589,10 @@ They are used to implement a third utility function called `addFixedValues` whic
 
 The `setEndianness` utility function recursively sets the endianness of all items of a given layout (and their items, and so on). Useful for when parameterizing all items is a hassle or when an existing layout unexpectedly needs to be used with a different endianness.
 
+## `named` Helper
+
+Reduces boiler-plate from `{ name: "foo", ...item } as const` to `named("foo", item)` when specifying named items, which is a larger readability win when defining layouts in practice than it would seem at first glance here.
+
 ## Limitations
 
 * Does not support circular layout definitions (e.g. can't model `type Dir = (Dir | File)[]`).

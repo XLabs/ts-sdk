@@ -8,6 +8,9 @@ import type {
   DeriveType,
 } from "./layout.js";
 
+export const named = <N extends string, const I extends Item>(name: N, item: I) =>
+  ({ name, ...item } as const);
+
 export const transform = <const L extends Layout, T>(
   layout: L,
   to: (derived: DeriveType<L>) => T,
