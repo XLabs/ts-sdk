@@ -13,8 +13,8 @@ import {
   compressTransactionMessageUsingAddressLookupTables,
 } from "@solana/kit";
 import type { RoArray, RoUint8Array, MaybeArray, MapArrayness, Opts } from "@xlabs-xyz/const-utils";
-import { zip, mapTo } from "@xlabs-xyz/const-utils";
-import { base58, definedOrThrow } from "@xlabs-xyz/utils";
+import { zip, mapTo, throwOnUndefined } from "@xlabs-xyz/const-utils";
+import { base58 } from "@xlabs-xyz/utils";
 import { serialize, deserialize, calcStaticSize } from "@xlabs-xyz/binary-layout";
 import type { KindWithAtomic, KindWithHumanAndAtomic } from "@xlabs-xyz/amount";
 import { Amount, getDecimals } from "@xlabs-xyz/amount";
@@ -201,7 +201,7 @@ export const createCurried = <const SOL extends KindWithAtomic | undefined = und
       .reduce((acc, [altAddr, altInfo]) => {
           acc[altAddr] = deserialize(
             addressLookupTableLayout,
-            definedOrThrow(altInfo?.data)
+            throwOnUndefined(altInfo?.data)
           ).addresses as Address[];
           return acc;
         },

@@ -8,7 +8,6 @@ Common runtime utilities: encoding, hashing, JSON with bigint support, and simpl
 - [BigInt JSON](#bigint-json) – JSON serialization that preserves bigints
 - [Hashing & Curves](#hashing--curves) – re-exports from @noble/hashes and @noble/curves
 - [Assertions](#assertions) – simple runtime checks
-- [Misc](#misc) – small helpers
 
 ## Encoding
 
@@ -116,24 +115,3 @@ assertDistinct(1, 2, 3);            // ok
 assertDistinct(1, 2, 2);            // throws "Values are not distinct: 1, 2, 2"
 ```
 
-## Misc
-
-```typescript
-definedOrThrow(value);              // returns value, throws if undefined
-definedOrThrow(value, "not found"); // custom error message
-
-throws(() => someFn());             // => true if someFn throws, false otherwise
-```
-
-`definedOrThrow` is a checked `!` assertion – useful in chains where breaking into an `if` block would be awkward:
-
-```typescript
-// instead of:
-const result = await fetchMaybe();
-if (result === undefined)
-  throw new Error("not found");
-await process(result);
-
-// you can write:
-await fetchMaybe().then(r => process(definedOrThrow(r, "not found")));
-```

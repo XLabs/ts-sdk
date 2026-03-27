@@ -31,13 +31,14 @@ The foundation layer providing type-safe utilities for working with readonly and
 - **Array/Object Utilities**: Const-preserving transformations (`mapTo`, `zip`, `pick`, `omit`, etc.)
 - **Branding**: Hierarchical type branding with tag accumulation for nominal typing
 - **Type Utilities**: `RoUint8Array`, deep readonly/mutable helpers, tuple types
+- **Piping**: Function composition (`pipe`), assertions (`ensure`, `forbid`), predicates
 
 ### utils
 Common runtime utilities with minimal dependencies:
 - **Encoding**: hex, base58, base64, bech32, bignum, UTF-8 bytes
 - **Hashing**: Re-exports from `@noble/hashes` and `@noble/curves`
 - **BigInt JSON**: Serialization that preserves bigints
-- **Assertions**: Simple runtime checks (`assertEqual`, `assertDistinct`, `definedOrThrow`)
+- **Assertions**: Simple runtime checks (`assertEqual`, `assertDistinct`)
 
 ### binary-layout
 A declarative DSL for binary data serialization/deserialization:

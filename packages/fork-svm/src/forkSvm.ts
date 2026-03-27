@@ -16,8 +16,8 @@ import {
 } from "@solana/kit";
 import { isJsonRpcPayload } from "@solana/rpc-spec";
 import type { RoArray, RoUint8Array, MaybeArray, Function } from "@xlabs-xyz/const-utils";
-import { zip, mapTo, isArray, omit } from "@xlabs-xyz/const-utils";
-import { base58, base64, definedOrThrow } from "@xlabs-xyz/utils";
+import { zip, mapTo, isArray, omit, throwOnUndefined } from "@xlabs-xyz/const-utils";
+import { base58, base64 } from "@xlabs-xyz/utils";
 import { deserialize } from "@xlabs-xyz/binary-layout";
 import {
   svmAddressItem,
@@ -528,8 +528,11 @@ export class ForkSvm {
           throw new Error(`Couldn't find lookup table: ${altAddr}`);
 
         const { addresses } = deserialize(addressLookupTableLayout, accInfo.data);
-        accounts.push(...[...writableIndexes, ...readonlyIndexes].map(i =>
-          definedOrThrow(addresses[i], `Out of bounds index: ${i} for lookup table: ${altAddr}`)
+        accounts.push(...[...writableIndexes, ...readonlyIndexes].map(
+          i => throwOnUndefined(
+            addresses[i],
+            `Out of bounds index: ${i} for lookup table: ${altAddr}`
+          )
         ));
       }
     }

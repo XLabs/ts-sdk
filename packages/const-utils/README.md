@@ -9,6 +9,7 @@ Type-safe utilities for readonly and const data structures, including bidirectio
 - [Object Utilities](#object-utilities) – type-safe object manipulation
 - [Const Maps](#const-maps) – type-safe bidirectional mappings from nested specs
 - [String Utilities](#string-utilities) – type-preserving case functions
+- [Piping](#piping) – function composition, assertions, and predicates
 - [Branding](#branding) – hierarchical type branding with tag accumulation
 - [Aliasing](#aliasing) – suppress union/type expansion in IDE tooltips
 
@@ -185,6 +186,32 @@ capitalize("hello");    // => "Hello"
 uncapitalize("Hello");  // => "hello"
 otherCap("hello");      // => "Hello" (toggles first letter case)
 ```
+
+## Piping
+
+Function composition with type-safe `pipe`, assertions, and predicates.
+
+### Composition
+
+- `pipe(f, g, h)` – compose functions left-to-right: `A → B → C → D` becomes `A → D`
+- `identity(val)` – pass-through, useful as a default in generic pipelines
+- `tap(fn)` – execute a side effect and return the original value
+- `tryOr(fallback)(fn)` – wrap a function to return a fallback value on error
+- `map(val, fn)` – apply `fn` if `val` is non-nullish, pass through `null`/`undefined`
+- `fallback(val)` – replace nullish values with a default
+
+### Assertions
+
+- `ensure(val, pred, msg?)` – return `val` if `pred` passes, throw otherwise. Narrows type when given a type guard.
+- `forbid(val, pred, msg?)` – return `val` if `pred` fails, throw otherwise. Narrows to `Exclude<T, U>` with a type guard.
+- `throwOnUndefined(val, msg?)` / `throwOnNullish(val, msg?)` – convenience wrappers
+
+### Predicates
+
+- `isUndefined`, `isNullish`, `isDefined`, `exists` – type guards
+- `and(...preds)`, `or(...preds)` – combinators
+- `not(val)` – boolean negation
+- `succeeds(fn)` / `throws(fn)` – test whether a function throws
 
 ## Branding
 

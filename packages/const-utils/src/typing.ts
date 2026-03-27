@@ -1,3 +1,24 @@
+export type Nullish = null | undefined;
+
+//Extend this type to create an object-like interface which is expected to be overridden,
+//  e.g. via a type declaration. An empty interface is equivalent to `any`, and allows values
+//  which are not object-like such as numbers or strings. A `Record<PropertyKey, never>` prohibits
+//  declaration merging. `object` itself cannot be extended directly, so we define this type alias.
+export type BaseObject = object;
+
+//Function is is a generic overload of the built-in type
+//  It should work as a more powerful drop-in replacement.
+//  Since the built-in type is not generic and permissive, we have to use RoArray<any> as the
+//    default type of the parameters, otherwise `Test` would become false after our overload:
+// type TestFunc = (...args: [string, number]) => boolean;
+// type Test = TestFunc extends Function ? true : false; //true for built-in
+export type Function<P extends RoArray<unknown> = RoArray<any>, R = unknown> =
+  (...args: P) => R;
+
+export type Guard<T, U extends T> = (val: T) => val is U;
+
+export type Predicate<T> = Function<[T], boolean>;
+
 export type NeTuple  <T = unknown> = [T, ...T[]];
 export type Tuple    <T = unknown> = NeTuple<T> | [];
 export type RoTuple  <T = unknown> = Readonly<Tuple<T>>;
@@ -38,21 +59,6 @@ type RoUint8ArrayBase<Self, TArrayBuffer extends ArrayBufferLike> =
 
 export interface RoUint8Array<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike>
   extends RoUint8ArrayBase<RoUint8Array<TArrayBuffer>, TArrayBuffer> {}
-
-//Function is is a generic overload of the built-in type
-//  It should work as a more powerful drop-in replacement.
-//  Since the built-in type is not generic and permissive, we have to use RoArray<any> as the
-//    default type of the parameters, otherwise `Test` would become false after our overload:
-// type TestFunc = (...args: [string, number]) => boolean;
-// type Test = TestFunc extends Function ? true : false; //true for built-in
-export type Function<P extends RoArray<unknown> = RoArray<any>, R = unknown> =
-  (...args: P) => R;
-
-//Extend this type to create an object-like interface which is expected to be overridden,
-//  e.g. via a type declaration. An empty interface is equivalent to `any`, and allows values
-//  which are not object-like such as numbers or strings. A `Record<PropertyKey, never>` prohibits
-//  declaration merging. `object` itself cannot be extended directly, so we define this type alias.
-export type BaseObject = object;
 
 export type If<C extends boolean, T, F> = C extends true ? T : F;
 

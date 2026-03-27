@@ -13,10 +13,10 @@ import {
   appendTransactionMessageInstructions,
 } from "@solana/kit";
 import type { RoArray, RoPair, MaybeArray } from "@xlabs-xyz/const-utils";
-import { type RoUint8Array, isArray } from "@xlabs-xyz/const-utils";
+import { type RoUint8Array, isArray, throws } from "@xlabs-xyz/const-utils";
 import type { Layout, DeriveType } from "@xlabs-xyz/binary-layout";
 import { serialize } from "@xlabs-xyz/binary-layout";
-import { bytes, base58, sha256, ed25519, throws } from "@xlabs-xyz/utils";
+import { bytes, base58, sha256, ed25519 } from "@xlabs-xyz/utils";
 import { type KindWithAtomic, Amount } from "@xlabs-xyz/amount";
 import { fromAtomicIfKind } from "@xlabs-xyz/common";
 import {
