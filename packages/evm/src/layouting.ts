@@ -14,11 +14,7 @@ export const uint256Item = { binary: "uint", size: wordSize } as const;
 export const evmAmountItem = <
   const K extends KindWithAtomic | undefined = undefined,
   S extends number = typeof wordSize,
->(kind?: K, size?: S):
-    K extends KindWithAtomic
-      ? ReturnType<typeof amountItem<S, K>>
-      : { binary: "uint"; size: S } =>
-  (kind ? amountItem(size ?? wordSize, kind) : { binary: "uint", size: size ?? wordSize }) as any;
+>(kind?: K, size?: S) => amountItem((size ?? wordSize) as S, kind);
 
 export const addressItem = {
   binary: "bytes",

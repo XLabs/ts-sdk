@@ -8,13 +8,44 @@ import type {
   DeepRo,
 } from "@xlabs-xyz/const-utils";
 import type { Layout, DeriveType } from "@xlabs-xyz/binary-layout";
-import { serialize } from "@xlabs-xyz/binary-layout";
+import { serialize, named } from "@xlabs-xyz/binary-layout";
 import { keccak256, bytes } from "@xlabs-xyz/utils";
 import type { KindWithAtomic } from "@xlabs-xyz/amount";
 import type { AmountOrAtomic } from "@xlabs-xyz/common";
-import { toAtomicIfAmount, hashItem, timestampConversion } from "@xlabs-xyz/common";
+import { toAtomicIfAmount, hashItem, timestampItem, timestampConversion } from "@xlabs-xyz/common";
 
-import { wordSize, addressItem, paddedSlotLayout } from "./layouting.js";
+import {
+  wordSize,
+  uint256Item,
+  addressItem,
+  paddedSlotLayout,
+  evmAmountItem,
+} from "./layouting.js";
+import { type ContractMethods, contractFromSpec } from "./client.js";
+
+const addr = (name: string) => named(name, paddedSlotLayout(addressItem));
+const u256 = (name: string) => named(name, uint256Item);
+const b32  = (name: string) => named(name, hashItem);
+const ts   = (name: string) => named(name, timestampItem("uint", wordSize));
+
+const permitSpec = <const K extends KindWithAtomic | undefined = undefined>(kind?: K) => {
+  const amt = (name: string) => named(name, evmAmountItem(kind));
+  return [
+    ["DOMAIN_SEPARATOR", [],          [],              hashItem   ],
+    ["nonces",           ["address"], [addr("owner")], uint256Item],
+    [ "permit",
+      ["address", "address", "uint256", "uint256", "uint8", "bytes32", "bytes32"],
+      [addr("owner"), addr("spender"), amt("value"), ts("deadline"), u256("v"), b32("r"), b32("s")],
+      undefined
+    ],
+  ] as const;
+};
+
+export const permit = <const K extends KindWithAtomic | undefined = undefined>(
+  contract: Address,
+  kind?: K,
+): ContractMethods<ReturnType<typeof permitSpec<K>>> =>
+  contractFromSpec(contract, permitSpec(kind));
 
 // ---- EIP-712 Types ----
 
