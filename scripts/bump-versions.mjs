@@ -25,7 +25,7 @@ for (const pkg of packages) {
   const pkgPath = join(packagesDir, pkg, 'package.json');
   const pkgJson = JSON.parse(readFileSync(pkgPath, 'utf-8'));
   pkgJson.version = newVersion;
-  
+
   // Also update peer dependencies to match
   if (pkgJson.peerDependencies) {
     for (const [dep, range] of Object.entries(pkgJson.peerDependencies)) {
@@ -34,7 +34,7 @@ for (const pkg of packages) {
       }
     }
   }
-  
+
   writeFileSync(pkgPath, JSON.stringify(pkgJson, null, 2) + '\n');
   console.log(`✓ ${pkgJson.name} → ${newVersion}`);
 }
