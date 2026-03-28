@@ -14,14 +14,14 @@ const ipV4Item = {
   binary: "array", length: 4, layout: { binary: "uint", size: 1 }
 } as const satisfies Layout;
 
-const nameItem = {
+const namer = {
   binary: "bytes", lengthSize: 2, custom: stringConversion
 } as const satisfies Layout;
 
 const endpointLayout = [
   { name: "header", binary: "bytes", custom: new Uint8Array([0, 42]), omit: true },
   { name: "address", binary: "switch", idSize: 1, idTag: "type", layouts: [
-    [[1, "Name" ], [{ name: "value", ...nameItem }]],
+    [[1, "Name" ], [{ name: "value", ...namer }]],
     [[4, "IPv4" ], [{ name: "value", ...ipV4Item }]],
   ]},
   { name: "port", binary: "uint", size: 2 },

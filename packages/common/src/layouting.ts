@@ -15,7 +15,7 @@ import type {
   NumberSize,
   Endianness,
 } from "@xlabs-xyz/binary-layout";
-import { numberMaxSize, defaultEndianness } from "@xlabs-xyz/binary-layout";
+import { numberMaxSize, defaultEndianness, named } from "@xlabs-xyz/binary-layout";
 import { bignum } from "@xlabs-xyz/utils";
 import type {
   Rationalish,
@@ -23,13 +23,17 @@ import type {
   KindWithHuman,
   KindWithAtomic,
   SymbolsOf,
+  AmountFromArgs,
 } from "@xlabs-xyz/amount";
-import { type AmountFromArgs, Amount, Conversion, Rational } from "@xlabs-xyz/amount";
+import { Amount, Conversion, Rational } from "@xlabs-xyz/amount";
 
 export const brandConversion= <B extends Brand<unknown, string>>() => ({
   to:   (v: Unbrand<B>): B => v as any,
   from: (v: B): Unbrand<B> => v as any,
 } as const);
+
+export const namer = <const I extends Item>(item: I) =>
+  <N extends string>(name: N) => named(name, item);
 
 export const hashItem = {
   binary: "bytes", size: 32,

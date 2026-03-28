@@ -8,11 +8,17 @@ import type {
   DeepRo,
 } from "@xlabs-xyz/const-utils";
 import type { Layout, DeriveType } from "@xlabs-xyz/binary-layout";
-import { serialize, named } from "@xlabs-xyz/binary-layout";
+import { serialize } from "@xlabs-xyz/binary-layout";
 import { keccak256, bytes } from "@xlabs-xyz/utils";
 import type { KindWithAtomic } from "@xlabs-xyz/amount";
 import type { AmountOrAtomic } from "@xlabs-xyz/common";
-import { toAtomicIfAmount, hashItem, timestampItem, timestampConversion } from "@xlabs-xyz/common";
+import {
+  toAtomicIfAmount,
+  hashItem,
+  timestampItem,
+  timestampConversion,
+  namer,
+} from "@xlabs-xyz/common";
 
 import {
   wordSize,
@@ -23,13 +29,13 @@ import {
 } from "./layouting.js";
 import { type ContractMethods, contractFromSpec } from "./client.js";
 
-const addr = (name: string) => named(name, paddedSlotLayout(addressItem));
-const u256 = (name: string) => named(name, uint256Item);
-const b32  = (name: string) => named(name, hashItem);
-const ts   = (name: string) => named(name, timestampItem("uint", wordSize));
+const addr = namer(paddedSlotLayout(addressItem));
+const u256 = namer(uint256Item);
+const b32  = namer(hashItem);
+const ts   = namer(timestampItem("uint", wordSize));
 
 const permitSpec = <const K extends KindWithAtomic | undefined = undefined>(kind?: K) => {
-  const amt = (name: string) => named(name, evmAmountItem(kind));
+  const amt = namer(evmAmountItem(kind));
   return [
     ["DOMAIN_SEPARATOR", [],          [],              hashItem   ],
     ["nonces",           ["address"], [addr("owner")], uint256Item],

@@ -1,10 +1,12 @@
 import type { Address } from "viem";
-import { named, stringConversion } from "@xlabs-xyz/binary-layout";
+import { stringConversion } from "@xlabs-xyz/binary-layout";
 import type { KindWithAtomic } from "@xlabs-xyz/amount";
 import { paddedSlotLayout, addressItem, evmAmountItem, abiEncodedBytesItem } from "./layouting.js";
-import { type ContractMethods, contractFromSpec } from "./client.js";
+import type { ContractMethods } from "./client.js";
+import { contractFromSpec } from "./client.js";
+import { namer } from "@xlabs-xyz/common";
 
-const addr = (name: string) => named(name, paddedSlotLayout(addressItem));
+const addr = namer(paddedSlotLayout(addressItem));
 
 const abiBytes = abiEncodedBytesItem();
 const abiStringItem = {
@@ -14,10 +16,10 @@ const abiStringItem = {
     from: (str: string) => abiBytes.custom.from(stringConversion.from(str)),
   },
 } as const;
-const decimalsItem  = paddedSlotLayout({ binary: "uint", size: 1 } as const);
+const decimalsItem = paddedSlotLayout({ binary: "uint", size: 1 } as const);
 
 const erc20Spec = <const K extends KindWithAtomic | undefined = undefined>(kind?: K) => {
-  const amt  = (name: string) => named(name, evmAmountItem(kind));
+  const amt = namer(evmAmountItem(kind));
   return [
     ["name",      [],                     [],                                 abiStringItem      ],
     ["symbol",    [],                     [],                                 abiStringItem      ],
