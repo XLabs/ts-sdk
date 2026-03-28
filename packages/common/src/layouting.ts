@@ -6,6 +6,7 @@ import type {
   TupleZip,
   Brand,
   Unbrand,
+  Function,
 } from "@xlabs-xyz/const-utils";
 import { column, entries, zip } from "@xlabs-xyz/const-utils";
 import type {
@@ -105,13 +106,13 @@ type NumericType<S extends number> =
 //  a valid CustomConversion. This way, users of amountItem can continue to use the permissive
 //  Rationalish type (which will be wrapped into a Rational any as part of the amountItem
 //  function) while linearTransform can emit CustomConversion compatible transformations
-type TransformFunc<S extends number, R extends Rationalish = Rationalish> = {
-  to:   (val: NumericType<S>) => R;
-  from: (val: Rational)       => NumericType<S>;
+type TransformFunc<S extends number, To extends Rationalish = Rationalish> = {
+  to:   Function<[NumericType<S>], To            >;
+  from: Function<[Rational],       NumericType<S>>;
 };
 
-type SizedTransformFunc<S extends number, R extends Rationalish = Rationalish> =
-  (size: S) => TransformFunc<S, R>;
+type SizedTransformFunc<S extends number, R extends Rationalish  = Rationalish> =
+  Function<[S], TransformFunc<S, R>>;
 
 type TransformFuncUnion<S extends number> = TransformFunc<S> | SizedTransformFunc<S>;
 
@@ -121,35 +122,61 @@ function numericReturn<S extends number>(size: S): TransformFunc<S>["from"] {
     : (val: Rational) => bignum.toNumber(val.floor()) as NumericType<S>;
 }
 
-type SizedReturnItem<S extends number, T> = {
-  binary: "uint";
-  size:   S;
-  custom: CustomConversion<NumericType<S>, T>;
-} extends infer R extends Item ? R : never;
+type SizedReturnItem<S extends number> =
+  ({ binary: "uint"; size: S; }) extends
+    infer R extends Item ? R : never;
 
-type AmountReturnItem<S extends number, K extends Kind> = SizedReturnItem<S, Amount<K>>;
+type SizedCustomReturnItem<S extends number, To> =
+  (SizedReturnItem<S> & { custom: CustomConversion<NumericType<S>, To> }) extends
+    infer R extends Item ? R : never;
+
+type NumTransformFuncUnion<S extends number, R> =
+  Function<[S], CustomConversion<NumericType<S>, R>> | CustomConversion<NumericType<S>, R>
+
+export type AmountItem<S extends number, R = undefined> =
+  R extends undefined
+  ? SizedReturnItem<S>
+  : SizedCustomReturnItem<S, R extends Kind ? Amount<R> : R>
 //conversion happens in 3 stages:
 // 1. raw value is read from layout
 // 2. then it is optionally transformed (e.g. scaled/multiplied/etc.)
 // 3. finally it is converted into an amount of the given kind and unit
 //and likewise but inverted for the opposite direction
+export function amountItem<
+  S extends number,
+  const K extends KindWithAtomic | undefined = undefined
+>(size:  S,
+  kind?: K,
+): AmountItem<S, K>;
+export function amountItem<S extends number, R>(
+  size:      S,
+  transform: NumTransformFuncUnion<S, R>,
+): AmountItem<S, R>;
 export function amountItem<S extends number, const K extends KindWithAtomic>(
   size:                   S,
   kind:                   K, //uses "atomic" by default
   unitSymbolOrTransform?: SymbolsOf<K> | TransformFuncUnion<S>,
-): AmountReturnItem<S, K>;
+): AmountItem<S, K>;
 export function amountItem<S extends number, const K extends Kind>(
   size:       S,
   kind:       K,
   unitSymbol: SymbolsOf<K>,
   transform?: TransformFuncUnion<S>,
-): AmountReturnItem<S, K>;
+): AmountItem<S, K>;
 export function amountItem<S extends number, const K extends Kind>(
   size:                   S,
-  kind:                   K,
+  kind?:                  K | NumTransformFuncUnion<S, unknown>,
   unitSymbolOrTransform?: SymbolsOf<K> | TransformFuncUnion<S>,
   transform?:             TransformFuncUnion<S>,
-): AmountReturnItem<S, K> {
+): any {
+  if (!kind || typeof kind === "function" || "to" in kind) {
+    let tf = kind as NumTransformFuncUnion<S, unknown> | undefined;
+    return {
+      binary: "uint", size,
+      ...(tf ? { custom: typeof tf === "function" ? tf(size) : tf } : {})
+    };
+  }
+
   let unitSymbol: SymbolsOf<K> | undefined;
   if (transform)
     unitSymbol = unitSymbolOrTransform as SymbolsOf<K>;
@@ -184,30 +211,30 @@ export function amountItem<S extends number, const K extends Kind>(
   return { binary: "uint", size, custom } as any;
 }
 
-type ConversionReturnItem<S extends number, NK extends Kind, DK extends Kind> =
-  SizedReturnItem<S, Conversion<NK, DK>>;
-
-type AmountItem = {
+type WidenedAmountItem = {
   binary: "uint";
   size:   number;
   custom: CustomConversion<any, Amount<any>>;
 };
 
+export type ConversionItem<S extends number, NK extends Kind, DK extends Kind> =
+  SizedCustomReturnItem<S, Conversion<NK, DK>>;
+
 //annoyingly, using AI extends AmountReturnItem<number, Kind> here breaks things for reasons
 //  that are somewhat unclear to me (incompatible CustomConversion types), hence the AmountItem
 //  workaround
-export function conversionItem<const AI extends AmountItem, const DK extends KindWithHuman>(
+export function conversionItem<const AI extends WidenedAmountItem, const DK extends KindWithHuman>(
   amntItem: AI,
   denKind:  DK, //uses "human" unit by default
-): AI extends AmountReturnItem<AI["size"], infer NK>
-  ? ConversionReturnItem<AI["size"], NK, DK>
+): AI extends AmountItem<AI["size"], infer NK extends Kind>
+  ? ConversionItem<AI["size"], NK, DK>
   : never;
-export function conversionItem<const AI extends AmountItem, const DK extends Kind>(
+export function conversionItem<const AI extends WidenedAmountItem, const DK extends Kind>(
   amntItem: AI,
   denKind:  DK,
   denUnit:  SymbolsOf<DK>,
-): AI extends AmountReturnItem<AI["size"], infer NK>
-  ? ConversionReturnItem<AI["size"], NK, DK>
+): AI extends AmountItem<AI["size"], infer NK extends Kind>
+  ? ConversionItem<AI["size"], NK, DK>
   : never;
 export function conversionItem<
   S extends number,
@@ -218,7 +245,7 @@ export function conversionItem<
   numUnit:    SymbolsOf<NK>,
   denKind:    DK, //uses "human" unit by default
   transform?: TransformFuncUnion<S>,
-): ConversionReturnItem<S, NK, DK>;
+): ConversionItem<S, NK, DK>;
 export function conversionItem<S extends number, const NK extends Kind, const DK extends Kind>(
   size:       S,
   numKind:    NK,
@@ -226,9 +253,9 @@ export function conversionItem<S extends number, const NK extends Kind, const DK
   denKind:    DK,
   denUnit:    SymbolsOf<DK>,
   transform?: TransformFuncUnion<S>,
-): ConversionReturnItem<S, NK, DK>;
+): ConversionItem<S, NK, DK>;
 export function conversionItem(
-  amntItemOrSize: AmountItem | number,
+  amntItemOrSize: WidenedAmountItem | number,
   denKindOrNumKind: Kind,
   denUnitOrNumUnit?: string,
   denKind?: Kind,

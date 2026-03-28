@@ -57,6 +57,38 @@ describe("amountItem", () => {
     const decoded = deserialize(layout, encoded);
     assert.strictEqual(decoded.in("ETH").toString(), "1");
   });
+
+  it("plain uint without kind", () => {
+    const layout = amountItem(4);
+    const encoded = serialize(layout, 42);
+    assert.deepStrictEqual(encoded, bignum.toBytes(42, 4));
+    const decoded = deserialize(layout, encoded);
+    assert.strictEqual(decoded, 42);
+  });
+
+  it("with a CustomConversion object", () => {
+    const custom = {
+      to:   (val: number) => `${val * 3}`,
+      from: (val: string) => Math.floor(Number(val) / 3),
+    };
+    const layout = amountItem(4, custom);
+    const encoded = serialize(layout, "99");
+    assert.deepStrictEqual(encoded, bignum.toBytes(33, 4)); // from: 99 / 3 = 33
+    const decoded = deserialize(layout, encoded);
+    assert.strictEqual(decoded, "99"); // to: 33 * 3 = "99"
+  });
+
+  it("with a sized factory function", () => {
+    const factory = (size: number) => ({
+      to:   (val: number) => `${val}@${size}`,
+      from: (val: string) => Number(val.split("@")[0]!),
+    });
+    const layout = amountItem(4, factory);
+    const encoded = serialize(layout, "7@4");
+    assert.deepStrictEqual(encoded, bignum.toBytes(7, 4)); // from: "7@4" => 7
+    const decoded = deserialize(layout, encoded);
+    assert.strictEqual(decoded, "7@4"); // to: 7 => "7@4"
+  });
 });
 
 // ---- conversionItem tests ----

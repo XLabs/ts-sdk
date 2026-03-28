@@ -52,9 +52,7 @@ const kitLamportsItem = {
 export const svmAmountItem = <
   const K extends KindWithAtomic | undefined = undefined,
   S extends number = 8
->(kind?: K, size?: S):
-      K extends KindWithAtomic ? ReturnType<typeof amountItem<S, K>> : typeof u64Item =>
-    (kind ? littleEndian(amountItem(size ?? 8, kind)) : u64Item) as any;
+>(kind?: K, size?: S) => littleEndian(amountItem((size ?? 8) as S, kind));
 
 export const lamportsItem = <const K extends KindWithAtomic | undefined = undefined>(kind?: K):
     K extends KindWithAtomic ? ReturnType<typeof svmAmountItem<K>> : typeof kitLamportsItem =>

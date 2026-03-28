@@ -14,14 +14,22 @@ Binary-layout items that serialize to/from `Amount` and related types.
 
 ### amountItem
 
-Deserialize numeric bytes directly to an `Amount`:
+Creates a `uint` layout item. Can optionally deserialize to an `Amount` or apply a custom conversion.
 
 ```typescript
+// Plain uint (no kind) – deserializes to number or bigint depending on size
+amountItem(4);   // => { binary: "uint", size: 4 }
+amountItem(32);  // => { binary: "uint", size: 32 } (bigint for size > 6)
+
+// With a Kind – deserializes to Amount
 const layout = [
   { name: "balance", ...amountItem(8, Sol) },  // uses atomic (lamports) by default
   { name: "timeout", ...amountItem(4, Duration, "second") },  // explicit unit
 ] as const;
+
 ```
+
+Also accepts a `CustomConversion` as the second argument for arbitrary transformations, or even a factory function `(size) => CustomConversion` for conversions that need to adapt to the item's size.
 
 With a transform for scaled and/or shifted values:
 
