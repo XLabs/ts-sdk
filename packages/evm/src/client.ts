@@ -1,6 +1,7 @@
 import type { Address, AccessList } from "viem";
 import type { RoUint8Array, RoArray, RoTuple, Function } from "@xlabs-xyz/const-utils";
 import type { Layout, ProperLayout, DeriveType } from "@xlabs-xyz/binary-layout";
+import type { QueryLayoutTriple } from "./query.js";
 import { serialize } from "@xlabs-xyz/binary-layout";
 import type { KindWithAtomic } from "@xlabs-xyz/amount";
 import type { AmountOrAtomic } from "@xlabs-xyz/common";
@@ -32,7 +33,7 @@ type ContractMethodOf<IL extends ProperLayout, OL> =
   OL extends Layout
     ? (params: DeriveType<IL>) => Readonly<{
         to:   Address;
-        data: readonly [Layout, DeriveType<IL>, OL];
+        data: QueryLayoutTriple<IL, OL>;
       }>
     : (from: Address, params: DeriveType<IL>) => Readonly<{
         from: Address;

@@ -2,6 +2,7 @@ import type {
   Abi,
   AbiStateMutability,
   Address,
+  Hex,
   PublicClient,
   ParseAbi,
   ContractFunctionName,
@@ -21,148 +22,135 @@ import { serialize, deserialize } from "@xlabs-xyz/binary-layout";
 import { hex } from "@xlabs-xyz/utils";
 
 // ---- ABI string type utilities ----
-// Signatures omit the `function` keyword: "balanceOf(address) view returns (uint256)"
+//signatures omit the `function` keyword: "balanceOf(address) view returns (uint256)"
 
 type FnSig<S extends string> = `function ${S}`;
 
 type ExtractFnName<S extends string> = S extends `${infer N}(${string}` ? N : never;
 
-// Defer ParseAbi via `infer` so TypeScript doesn't eagerly check
-// the Abi constraint when S is still a generic type parameter.
-// string extends S guards the fully-generic case.
-type AbiArgs<S extends string> =
-  string extends S ? RoArray<unknown> :
-  ParseAbi<[FnSig<S>]> extends infer A extends Abi ?
-    ExtractFnName<S> extends infer N extends ContractFunctionName<A, AbiStateMutability> ?
-      ContractFunctionArgs<A, AbiStateMutability, N>
+//viem couldn't be bothered to think about the order of their type parameters and what their users
+//  actually need, so we have to drag in AbiStateMutability when we don't care about it
+type ViemResolve<A extends Abi, N extends ContractFunctionName<A>, T extends "params" | "return"> =
+  T extends "params"
+  ? ContractFunctionArgs<A, AbiStateMutability, N>
+  : ContractFunctionReturnType<A, AbiStateMutability, N>;
+
+type AbiResolve<S extends string, T extends "params" | "return"> =
+  string extends S
+  ? T extends "params"
+    ? RoArray
+    : unknown
+  : ParseAbi<[FnSig<S>]> extends infer A extends Abi
+  ? ExtractFnName<S> extends infer N extends ContractFunctionName<A>
+    ? ViemResolve<A, N, T>
     : never
   : never;
 
-type AbiReturn<S extends string> =
-  string extends S ? unknown :
-  ParseAbi<[FnSig<S>]> extends infer A extends Abi ?
-    ExtractFnName<S> extends infer N extends ContractFunctionName<A, AbiStateMutability> ?
-      ContractFunctionReturnType<A, AbiStateMutability, N>
+type AbiParameters<S extends string> = AbiResolve<S, "params">;
+
+export type QueryAbiReturn<S extends string> = AbiResolve<S, "return">;
+
+export type QueryAbiPair<S extends string = string> = RoPair<S, AbiParameters<S>>;
+
+export type QueryLayoutTriple<CL extends Layout = Layout, RL extends Layout = Layout> =
+  readonly [CL, DeriveType<CL>, RL];
+
+export type QueryCallData = RoUint8Array | QueryLayoutTriple | QueryAbiPair;
+
+// ---- QueryCall ----
+
+export type QueryCall<D extends QueryCallData = QueryCallData> =
+  Readonly<{ to: Address; data: D; allowFailure?: boolean }>;
+
+type CheckCallImpl<C> =
+  C extends { data: infer D }
+  ? D extends RoUint8Array
+    ? RoUint8Array
+    : D extends QueryLayoutTriple<infer CL extends Layout, infer RL extends Layout>
+    ? QueryLayoutTriple<CL, RL>
+    : D extends QueryAbiPair<infer S extends string>
+    ? QueryAbiPair<S>
     : never
   : never;
 
-type LayoutTriple<CL extends Layout = Layout, P = unknown, RL extends Layout = Layout> =
-  readonly [CL, P, RL];
+type CheckCall<C> = Omit<C, "data"> & { data: CheckCallImpl<C> };
 
-// Structural constraint — specific typing flows through ResultOf
-type CallData = RoUint8Array | LayoutTriple | RoPair<string, RoArray<unknown>>;
-
-// ---- ReadCall ----
-
-export type ReadCall<D extends CallData = CallData> = Readonly<{
-  to:    Address;
-  from?: Address;
-  data:  D;
-  allowFailure?: boolean;
-}>;
-
-// ---- Call validation ----
-// Reconstructs each call with the correct params type derived from its own layout/ABI.
-// If the actual call doesn't match the reconstruction, the extends check fails.
-
-type CheckCall<C> = C extends { data: infer D } ?
-  D extends RoUint8Array ? C :
-  D extends LayoutTriple<infer CL, unknown, infer RL> ?
-    Omit<C, 'data'> & { data: LayoutTriple<CL, DeriveType<CL>, RL> } :
-  D extends RoPair<infer S extends string, unknown> ?
-    Omit<C, 'data'> & { data: RoPair<S, AbiArgs<S>> } :
-  never : never;
-
-type CheckCalls<A> = A extends RoArray<ReadCall>
+type CheckCalls<A> =
+  A extends RoArray<QueryCall>
   ? { [K in keyof A]: CheckCall<A[K]> }
   : CheckCall<A>;
 
 // ---- Result type mapping ----
 
 type ResultOf<D> =
-  D extends RoUint8Array ? RoUint8Array :
-  D extends LayoutTriple<Layout, unknown, infer RL> ? DeriveType<RL> :
-  D extends RoPair<infer S extends string, unknown> ? AbiReturn<S> :
+  D extends RoUint8Array                                       ? RoUint8Array      :
+  D extends QueryLayoutTriple<Layout, infer RL extends Layout> ? DeriveType<RL>    :
+  D extends QueryAbiPair<infer S extends string>               ? QueryAbiReturn<S> :
   never;
 
-type CallResult<C extends ReadCall> =
-  C extends { allowFailure: true }
-  ? { success: true; data: ResultOf<C['data']> } | { success: false; revertData: RoUint8Array }
-  : ResultOf<C['data']>;
-
-export type QueryResult<A> =
-  A extends RoArray<ReadCall>
-  ? { [K in keyof A]: A[K] extends ReadCall ? CallResult<A[K]> : never }
-  : A extends ReadCall
-  ? CallResult<A>
+type CallResult<C> =
+  C extends QueryCall
+  ? C extends { allowFailure: true }
+    ? { success: true; data: ResultOf<C["data"]> } | { success: false; data: RoUint8Array }
+    : ResultOf<C["data"]>
   : never;
+
+export type QueryResult<A extends MaybeArray<QueryCall>> =
+  A extends RoArray<QueryCall>
+  ? { [K in keyof A]: CallResult<A[K]> }
+  : CallResult<A>;
+
+export type QueryResultWithMeta<A extends MaybeArray<QueryCall>> =
+  [QueryResult<A>, bigint, RoUint8Array, Date];
 
 // ---- Runtime encoding/decoding ----
 
-// viem's parseAbi requires const string literals at the type level;
-// cast to a simple signature for dynamic runtime use
-const dynamicParseAbi = parseAbi as (sigs: RoArray<string>) => Abi;
-
 const fnNameRe = /^(\w+)\s*\(/;
-const extractFnName = (sig: string) => {
-  const match = sig.match(fnNameRe);
-  if (!match)
-    throw new Error(`Invalid function signature: ${sig}`);
+const viemAbi = (sig: string) => ({
+  abi:          parseAbi([`function ${sig}` as string]) as Abi,
+  functionName: throwOnNullish(sig.match(fnNameRe), `Invalid function signature: ${sig}`)[1]!,
+} as const);
 
-  return match[1]!;
-};
-
-const toViemSig = (sig: string): string => `function ${sig}`;
-const viemAbi = (sig: string) =>
-  ({ abi: dynamicParseAbi([toViemSig(sig)]), functionName: extractFnName(sig) } as const);
-
-type HexStr = `0x${string}`;
-
-const deserializeHex = <const L extends Layout>(resultLayout: L, returnData: HexStr) =>
-  deserialize(resultLayout, hex.decode(returnData));
-
-const encodeCallData = (data: CallData): HexStr =>
-    !Array.isArray(data)
+const encodeCallData = (data: QueryCallData): Hex =>
+  !Array.isArray(data)
   ? hex.encode(data as RoUint8Array, true)
   : typeof data[0] === "string"
   ? encodeFunctionData({ ...viemAbi(data[0]), args: data[1] })
   : hex.encode(serialize(data[0], data[1]), true)
 
-const decodeResult = (data: CallData, returnData: HexStr) =>
-    !Array.isArray(data)
+const decodeResult = (data: QueryCallData, returnData: Hex) =>
+  !Array.isArray(data)
   ? hex.decode(returnData)
   : typeof data[0] === "string"
   ? decodeFunctionResult({ ...viemAbi(data[0]), data: returnData })
-  : deserializeHex(data[2], returnData);
+  : deserialize(data[2], hex.decode(returnData));
 
 const processResult = (
-  call: ReadCall,
-  raw: { success: boolean; returnData: HexStr },
+  call: QueryCall,
+  raw: ViemResolve<typeof multicall3Abi, "aggregate3", "return">[number],
 ) => {
-  if (!raw.success) {
-    if (call.allowFailure)
-      return { success: false, revertData: hex.decode(raw.returnData) };
+  const { success, returnData } = raw;
+  const data = success ? decodeResult(call.data, returnData) : hex.decode(returnData);
 
-    throw new Error(`Call to ${call.to} reverted: ${raw.returnData}`);
-  }
+  if (!raw.success && !call.allowFailure)
+    throw new Error(`Call to ${call.to} reverted: ${data}`);
 
-  const decoded = decodeResult(call.data, raw.returnData);
-  return call.allowFailure ? { success: true, data: decoded } : decoded;
+  return call.allowFailure ? { success, data } : data;
 };
 
 // ---- queryEvm ----
 
 const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
 
-async function aggregate3(viemClient: PublicClient, calls: RoArray<ReadCall>, blockHash: HexStr) {
+async function aggregate3(viemClient: PublicClient, calls: RoArray<QueryCall>, blockHash: Hex) {
   const callData = encodeFunctionData({
     abi:          multicall3Abi,
     functionName: "aggregate3",
-    args: [calls.map(c => ({
-      target:       c.to,
-      allowFailure: true,
-      callData:     encodeCallData(c.data),
-    }))],
+    args:         [calls.map(c => ({
+                    target:       c.to,
+                    allowFailure: true,
+                    callData:     encodeCallData(c.data),
+                  }))],
   });
 
   const returnData = await viemClient.request({
@@ -177,20 +165,22 @@ async function aggregate3(viemClient: PublicClient, calls: RoArray<ReadCall>, bl
   });
 }
 
-export type EvmQuery = ReturnType<typeof queryEvm>;
-
 const MAX_RETRIES = 3;
+
+export type BlockSpec<S extends "hash" | "ref" = "hash" | "ref"> =
+  S extends "hash"
+  ? RoUint8Array
+  : bigint | "latest" | "finalized";
 
 //resolves a block tag or number to a canonical block hash, retrying on reorgs.
 async function resolveBlock(
   viemClient: PublicClient,
-  calls:      RoArray<ReadCall>,
-  block:      bigint | "latest" | "finalized",
+  calls:      RoArray<QueryCall>,
+  block:      BlockSpec<"ref">,
 ) {
+  const blockIdentifier = typeof block === "bigint" ? { blockNumber: block } : { blockTag: block };
   for (let attempt = 0; attempt < MAX_RETRIES; ++attempt) {
-    const blockInfo = await viemClient.getBlock(
-      typeof block === "bigint" ? { blockNumber: block } : { blockTag: block }
-    );
+    const blockInfo = await viemClient.getBlock(blockIdentifier);
 
     const blockHash = throwOnNullish(blockInfo.hash, "Block hash is null (pending block)");
 
@@ -210,47 +200,56 @@ async function resolveBlock(
   throw new Error(`Querying canonical block failed ${MAX_RETRIES} times in a row`);
 }
 
-export const queryEvm = (viemClient: PublicClient) => {
-  const processResults = <const A extends MaybeArray<ReadCall>>(
-    callS: A,
-    calls: RoArray<ReadCall>,
-    raw:   ReturnType<typeof decodeFunctionResult<typeof multicall3Abi, "aggregate3">>,
-  ) => (
-    isArray(callS)
-    ? calls.map((c, i) => processResult(c, raw[i]!))
-    : processResult(calls[0]!, raw[0]!)
-  ) as QueryResult<A>;
+const queryImpl = (
+  viemClient: PublicClient,
+  callS:      MaybeArray<QueryCall>,
+  block:      BlockSpec,
+) => {
+  const multi = isArray(callS);
+  const calls = multi ? callS : [callS];
 
-  // When the caller provides a block hash, we use it directly — if it's no longer canonical,
-  // requireCanonical will cause the eth_call to fail, which is the correct behavior since
-  // the caller explicitly asked for that specific block.
-  function query<const A extends MaybeArray<ReadCall>>(
+  return (isUint8Array(block)
+    ? aggregate3(viemClient, calls, hex.encode(block, true))
+    : resolveBlock(viemClient, calls, block)
+  ).then(raw => {
+    const [results,         blockInfo] = "results" in raw
+        ? [raw.results, raw.blockInfo]
+        : [raw,             undefined];
+
+    const result = multi
+      ? calls.map((c, i) => processResult(c, results[i]!))
+      : processResult(calls[0]!, results[0]!);
+
+    return blockInfo
+      ? [result, blockInfo.number, blockInfo.hash, blockInfo.timestamp]
+      : result;
+  });
+};
+
+export type Query = ReturnType<typeof createQuery>;
+
+export const createQuery = (viemClient: PublicClient) => {
+  //query by blockhash -> only get actual result
+  function query<const A extends MaybeArray<QueryCall>>(
     callS: A & CheckCalls<A>,
-    block: RoUint8Array,
+    block: BlockSpec<"hash">,
   ): Promise<QueryResult<A>>;
-  // When the caller specifies a tag or number, a reorg between getBlock and eth_call can
-  // cause the fetched hash to become non-canonical. In that case we retry with a fresh block.
-  function query<const A extends MaybeArray<ReadCall>>(
+  //query by block ref -> get result + meta
+  function query<const A extends MaybeArray<QueryCall>>(
+    callS:  A & CheckCalls<A>,
+    block?: BlockSpec<"ref">, //default = "latest"
+  ): Promise<QueryResultWithMeta<A>>;
+  //convenience overload to allow both
+  function query<const A extends MaybeArray<QueryCall>>(
     callS: A & CheckCalls<A>,
-    block?: bigint | "latest" | "finalized",
-  ): Promise<[QueryResult<A>, bigint, RoUint8Array, Date]>;
-  function query<const A extends MaybeArray<ReadCall>>(
+    block: BlockSpec,
+  ): Promise<QueryResult<A> | QueryResultWithMeta<A>>;
+  //impl
+  function query<const A extends MaybeArray<QueryCall>>(
     callS: A & CheckCalls<A>,
-    block: RoUint8Array | bigint | "latest" | "finalized" = "latest",
+    block: BlockSpec = "latest",
   ) {
-    const calls: RoArray<ReadCall> = isArray(callS) ? callS : [callS];
-
-    return isUint8Array(block)
-      ? aggregate3(viemClient, calls, hex.encode(block, true))
-          .then(results =>processResults(callS, calls, results))
-      : resolveBlock(viemClient, calls, block)
-          .then(({ results, blockInfo }) =>
-            [ processResults(callS, calls, results),
-              blockInfo.number,
-              blockInfo.hash,
-              blockInfo.timestamp
-            ]
-          );
+    return queryImpl(viemClient, callS, block);
   }
 
   return query;

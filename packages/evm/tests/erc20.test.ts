@@ -93,14 +93,14 @@ describe("erc20 spec", () => {
 
 import { createPublicClient, http } from "viem";
 import { mainnet } from "viem/chains";
-import { queryEvm } from "../src/query.js";
+import { createQuery } from "../src/query.js";
 
 const hasNetwork = await fetch("https://cloudflare.com", { method: "HEAD" })
   .then(() => true)
   .catch(() => false);
 
 const client = createPublicClient({ chain: mainnet, transport: http() });
-const query = queryEvm(client);
+const query = createQuery(client);
 
 // Circle's USDC treasury — reliably holds a non-zero balance
 const usdcTreasury = "0x55FE002aefF02F77364de339a1292923A15844B8" as Address;
