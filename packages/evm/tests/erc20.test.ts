@@ -18,7 +18,7 @@ const contract = erc20(token);
 describe("erc20 spec", () => {
   describe("read calls", () => {
     it("name() returns a layout triple with the correct selector", () => {
-      const call = contract.name({});
+      const call = contract.name();
       assert.strictEqual(call.to, token);
       const [layout, params, _outputLayout] = call.data;
       const encoded = serialize(layout, params);
@@ -27,19 +27,19 @@ describe("erc20 spec", () => {
     });
 
     it("symbol() returns a layout triple with the correct selector", () => {
-      const call = contract.symbol({});
+      const call = contract.symbol();
       const encoded = serialize(call.data[0], call.data[1]);
       assert.deepStrictEqual(encoded, selectorOf("symbol()"));
     });
 
     it("decimals() returns a layout triple with the correct selector", () => {
-      const call = contract.decimals({});
+      const call = contract.decimals();
       const encoded = serialize(call.data[0], call.data[1]);
       assert.deepStrictEqual(encoded, selectorOf("decimals()"));
     });
 
     it("balanceOf encodes owner address after selector", () => {
-      const call = contract.balanceOf({ owner: alice });
+      const call = contract.balanceOf(alice);
       const [layout, params] = call.data;
       const encoded = serialize(layout, params);
       const expected = new Uint8Array(4 + wordSize);
@@ -49,7 +49,7 @@ describe("erc20 spec", () => {
     });
 
     it("allowance encodes owner and spender", () => {
-      const call = contract.allowance({ owner: alice, spender: bob });
+      const call = contract.allowance(alice, bob);
       const [layout, params] = call.data;
       const encoded = serialize(layout, params);
       assert.strictEqual(encoded.length, 4 + 2 * wordSize);
@@ -59,7 +59,7 @@ describe("erc20 spec", () => {
 
   describe("write calls", () => {
     it("approve serializes from, selector, spender, and value", () => {
-      const result = contract.approve(alice, { spender: bob, value: 1000n });
+      const result = contract.approve(alice, bob, 1000n);
       assert.strictEqual(result.from, alice);
       assert.strictEqual(result.to, token);
       assert.ok(result.data instanceof Uint8Array);
@@ -70,7 +70,7 @@ describe("erc20 spec", () => {
     });
 
     it("transfer serializes from, selector, to, and value", () => {
-      const result = contract.transfer(alice, { to: bob, value: 500n });
+      const result = contract.transfer(alice, bob, 500n);
       assert.strictEqual(result.from, alice);
       assert.strictEqual(result.to, token);
       assert.deepStrictEqual(
@@ -81,7 +81,7 @@ describe("erc20 spec", () => {
 
     it("approve round-trips value through the layout", () => {
       const value = 10n ** 18n;
-      const result = contract.approve(alice, { spender: bob, value });
+      const result = contract.approve(alice, bob, value);
       // value is in the last 32 bytes
       const encodedValue = bignum.decode(result.data.subarray(result.data.length - wordSize));
       assert.strictEqual(encodedValue, value);
@@ -109,9 +109,9 @@ describe("erc20 live query", { skip: !hasNetwork && "no network" }, () => {
   it("reads name, symbol, and decimals", async () => {
     const usdc = erc20(token);
     const [[name, symbol, decimals]] = await query([
-      usdc.name({}),
-      usdc.symbol({}),
-      usdc.decimals({}),
+      usdc.name(),
+      usdc.symbol(),
+      usdc.decimals(),
     ]);
     assert.strictEqual(name, "USD Coin");
     assert.strictEqual(symbol, "USDC");
@@ -120,7 +120,7 @@ describe("erc20 live query", { skip: !hasNetwork && "no network" }, () => {
 
   it("reads a non-zero balance", async () => {
     const usdc = erc20(token);
-    const [[balance]] = await query([usdc.balanceOf({ owner: usdcTreasury })]);
+    const [[balance]] = await query([usdc.balanceOf(usdcTreasury)]);
     assert.strictEqual(typeof balance, "bigint");
     assert.ok(balance > 0n, `Expected positive balance, got ${balance}`);
   });
@@ -131,14 +131,14 @@ describe("permit spec", () => {
 
   describe("read calls", () => {
     it("DOMAIN_SEPARATOR() has the correct selector", () => {
-      const call = p.DOMAIN_SEPARATOR({});
+      const call = p.DOMAIN_SEPARATOR();
       assert.strictEqual(call.to, token);
       const encoded = serialize(call.data[0], call.data[1]);
       assert.deepStrictEqual(encoded, selectorOf("DOMAIN_SEPARATOR()"));
     });
 
     it("nonces(address) encodes owner after selector", () => {
-      const call = p.nonces({ owner: alice });
+      const call = p.nonces(alice);
       const encoded = serialize(call.data[0], call.data[1]);
       assert.deepStrictEqual(encoded.subarray(0, 4), selectorOf("nonces(address)"));
       assert.strictEqual(encoded.length, 4 + wordSize);
@@ -147,14 +147,15 @@ describe("permit spec", () => {
 
   describe("write calls", () => {
     it("permit serializes all 7 params with correct selector", () => {
+      //uses object form of arguments
       const result = p.permit(alice, {
-        owner: alice,
-        spender: bob,
-        value: 1000n,
+        owner:    alice,
+        spender:  bob,
+        value:    1000n,
         deadline: new Date("2030-01-01T00:00:00Z"),
-        v: 27n,
-        r: new Uint8Array(32),
-        s: new Uint8Array(32),
+        v:        27,
+        r:        new Uint8Array(32),
+        s:        new Uint8Array(32),
       });
       assert.strictEqual(result.from, alice);
       assert.strictEqual(result.to, token);
@@ -172,8 +173,8 @@ describe("permit live query", { skip: !hasNetwork && "no network" }, () => {
   it("reads DOMAIN_SEPARATOR and nonce", async () => {
     const p = permit(token);
     const [[domainSep, nonce]] = await query([
-      p.DOMAIN_SEPARATOR({}),
-      p.nonces({ owner: usdcTreasury }),
+      p.DOMAIN_SEPARATOR(),
+      p.nonces(usdcTreasury),
     ]);
     assert.strictEqual(domainSep.length, 32);
     assert.strictEqual(typeof nonce, "bigint");

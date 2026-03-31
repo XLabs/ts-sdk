@@ -1,6 +1,7 @@
 import type { Address } from "viem";
 import { stringConversion } from "@xlabs-xyz/binary-layout";
 import type { KindWithAtomic } from "@xlabs-xyz/amount";
+import type { AmountOrAtomic } from "@xlabs-xyz/common";
 import { paddedSlotLayout, addressItem, evmAmountItem, abiEncodedBytesItem } from "./layouting.js";
 import type { ContractMethods } from "./client.js";
 import { contractFromSpec } from "./client.js";
@@ -19,15 +20,34 @@ const abiStringItem = {
 const decimalsItem = paddedSlotLayout({ binary: "uint", size: 1 } as const);
 
 const erc20Spec = <const K extends KindWithAtomic | undefined = undefined>(kind?: K) => {
+  type A = AmountOrAtomic<K>;
   const amt = namer(evmAmountItem(kind));
+
+  const [noParams, owner, ownerSpender, spenderValue, toValue] = [[
+      [                                  ],
+      (                                  ) => ({})
+    ], [
+      [addr("owner")                     ],
+      (owner: Address                    ) => ({ owner })
+    ], [
+      [addr("owner"),    addr("spender") ],
+      (owner: Address,   spender: Address) => ({ owner, spender })
+    ], [
+      [addr("spender"),  amt("value")    ],
+      (spender: Address, value: A        ) => ({ spender, value })
+    ], [
+      [addr("to"),       amt("value")    ],
+      (to: Address,      value: A        ) => ({ to, value })
+    ]] as const;
+
   return [
-    ["name",      [],                     [],                                 abiStringItem      ],
-    ["symbol",    [],                     [],                                 abiStringItem      ],
-    ["decimals",  [],                     [],                                 decimalsItem       ],
-    ["balanceOf", ["address"           ], [addr("owner")                   ], evmAmountItem(kind)],
-    ["allowance", ["address", "address"], [addr("owner"),   addr("spender")], evmAmountItem(kind)],
-    ["approve",   ["address", "uint256"], [addr("spender"), amt("value")   ], undefined          ],
-    ["transfer",  ["address", "uint256"], [addr("to"),      amt("value")   ], undefined          ],
+    ["name",      [],                     ...noParams,     abiStringItem      ],
+    ["symbol",    [],                     ...noParams,     abiStringItem      ],
+    ["decimals",  [],                     ...noParams,     decimalsItem       ],
+    ["balanceOf", ["address"           ], ...owner,        evmAmountItem(kind)],
+    ["allowance", ["address", "address"], ...ownerSpender, evmAmountItem(kind)],
+    ["approve",   ["address", "uint256"], ...spenderValue, undefined          ],
+    ["transfer",  ["address", "uint256"], ...toValue,      undefined          ],
   ] as const;
 }
 

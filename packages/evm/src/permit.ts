@@ -30,20 +30,35 @@ import {
 import { type ContractMethods, contractFromSpec } from "./client.js";
 
 const addr = namer(paddedSlotLayout(addressItem));
-const u256 = namer(uint256Item);
+const u8   = namer(paddedSlotLayout({ binary: "uint", size: 1 }));
 const b32  = namer(hashItem);
 const ts   = namer(timestampItem("uint", wordSize));
 
 const permitSpec = <const K extends KindWithAtomic | undefined = undefined>(kind?: K) => {
+  type A = AmountOrAtomic<K>;
   const amt = namer(evmAmountItem(kind));
+
+  const noParams = [[], () => ({})] as const;
+  const owner    = [[addr("owner")], (owner: Address) => ({ owner })] as const;
+  const permit   = [
+    [addr("owner"), addr("spender"), amt("value"), ts("deadline"), u8("v"), b32("r"), b32("s")],
+    ( owner:    Address,
+      spender:  Address,
+      value:    A,
+      deadline: Date,
+      v:        number,
+      r:        RoUint8Array,
+      s:        RoUint8Array
+    ) => ({ owner, spender, value, deadline, v, r, s })
+  ] as const;
+
+  const permitParams =
+    ["address", "address", "uint256", "uint256", "uint8", "bytes32", "bytes32"] as const;
+
   return [
-    ["DOMAIN_SEPARATOR", [],          [],              hashItem   ],
-    ["nonces",           ["address"], [addr("owner")], uint256Item],
-    [ "permit",
-      ["address", "address", "uint256", "uint256", "uint8", "bytes32", "bytes32"],
-      [addr("owner"), addr("spender"), amt("value"), ts("deadline"), u256("v"), b32("r"), b32("s")],
-      undefined
-    ],
+    ["DOMAIN_SEPARATOR", [],           ...noParams, hashItem   ],
+    ["nonces",           ["address"],  ...owner,    uint256Item],
+    ["permit",           permitParams, ...permit,   undefined  ],
   ] as const;
 };
 
