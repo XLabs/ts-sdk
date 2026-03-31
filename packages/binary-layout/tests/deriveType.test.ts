@@ -1,6 +1,6 @@
 import type { RoArray, RoUint8Array } from "@xlabs-xyz/const-utils";
 
-import type { DeriveType, LayoutObject } from "../src/index.js";
+import type { DeriveType, DeriveTuple, LayoutObject } from "../src/index.js";
 
 type Assert<T extends true> = T;
 type Equals<A, B> =
@@ -252,3 +252,54 @@ type _Nested = Assert<Equals<
     readonly body: RoUint8Array;
   }
 >>;
+
+// ============================================================================
+// DeriveTuple
+// ============================================================================
+
+// Basic: preserves order and maps item types
+type _Tup1 = Assert<Equals<
+  DeriveTuple<[
+    { name: "a"; binary: "uint"; size: 2 },
+    { name: "b"; binary: "bytes"; size: 4 },
+    { name: "c"; binary: "uint"; size: 8 },
+  ]>,
+  [number, RoUint8Array, bigint]
+>>;
+
+// Omitted items are excluded
+type _Tup2 = Assert<Equals<
+  DeriveTuple<[
+    { name: "header"; binary: "uint"; size: 1; omit: true },
+    { name: "x"; binary: "uint"; size: 2 },
+    { name: "y"; binary: "uint"; size: 4 },
+  ]>,
+  [number, number]
+>>;
+
+// Empty after omissions
+type _Tup3 = Assert<Equals<
+  DeriveTuple<[
+    { name: "only"; binary: "uint"; size: 1; omit: true },
+  ]>,
+  []
+>>;
+
+// Single item
+type _Tup4 = Assert<Equals<
+  DeriveTuple<[{ name: "solo"; binary: "uint"; size: 1 }]>,
+  [number]
+>>;
+
+// Custom conversions carry through
+type _Tup5 = Assert<Equals<
+  DeriveTuple<[
+    { name: "a"; binary: "uint"; size: 2;
+      custom: { to: (v: number) => string; from: (v: string) => number } },
+    { name: "b"; binary: "uint"; size: 1 },
+  ]>,
+  [string, number]
+>>;
+
+// Unresolvable generic falls back to unknown[]
+type _Tup6 = Assert<Equals<DeriveTuple<import("../src/index.js").ProperLayout>, unknown[]>>;

@@ -10,3 +10,4 @@ export { calcSize, calcStaticSize } from "./size.js";
 export * from "./items.js";
 export * from "./setEndianness.js";
 export * from "./manipulate.js";
+export * from "./tuple.js";

@@ -577,6 +577,12 @@ serialize(myBitsetItem, { foo: false, bar: true, baz: true });
 //                     baz bar foo
 ```
 
+## Tuple Utils
+
+The `DeriveTuple` type and the `toTuple`/`fromTuple` functions allow converting between the object representation produced by `DeriveType` and an ordered tuple representation that preserves the positional order of a layout's items. This is useful when a positional/argument-list style interface is preferred over a named-field object.
+
+Only works with `ProperLayout` (arrays of named items), since object types are inherently unordered in TypeScript. Items marked with `omit: true` are excluded from the tuple, just like for objects.
+
 ## Fixed-Dynamic Utils
 
 There are two utility functions that allow filtering layouts for their fixed and dynamic items:
