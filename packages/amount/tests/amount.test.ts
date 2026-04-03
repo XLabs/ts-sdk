@@ -636,6 +636,21 @@ describe("Amount", () => {
     });
   });
 
+  describe("same-kind division", () => {
+    it("returns a Rational", () => {
+      const a = Amount.from(10, ETH);
+      const b = Amount.from(4, ETH);
+      assert.deepStrictEqual(a.div(b).unwrap(), [5n, 2n]);
+    });
+
+    it("works with mod for divmod semantics", () => {
+      const a = Amount.from(10, ETH);
+      const b = Amount.from(3, ETH);
+      const remainder = a.mod(b);
+      assert.deepStrictEqual(remainder.in("ETH").unwrap(), [1n, 1n]);
+    });
+  });
+
   describe("per", () => {
     it("creates conversion from amount and kind", () => {
       const usd = Amount.from(50_000, USD);

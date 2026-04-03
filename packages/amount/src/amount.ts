@@ -187,14 +187,25 @@ export class _Amount<K extends Kind> {
   }
 
   div(other: Rationalish | Amount<Brand<Kind, "scalar">>): Amount<K>;
+  div(other: _Amount<K>): Rational;
   div<DK extends Kind>(other: Conversion<K, DK>): Amount<DK>;
-  div(other: Rationalish | Amount<Brand<Kind, "scalar">> | Conversion<K, Kind>): Amount<Kind> {
+  div(other: Rationalish | Amount<Brand<Kind, "scalar">> | _Amount<K> | Conversion<K, Kind>):
+      Amount<Kind> | Rational {
     if (_Amount.isConversion(other)) {
       this.checkKind(other.num);
       return new _Amount(this.amount.div(other.ratio), other.den) as Amount<Kind>;
     }
-    const rhs = other instanceof _Amount ? other.getIn("standard") : other;
-    return new _Amount(this.amount.div(rhs), this.kind) as Amount<Kind>;
+    if (other instanceof _Amount) {
+      if (other.kind === this.kind)
+        return this.amount.div(other.amount);
+      return new _Amount(this.amount.div(other.amount), this.kind) as Amount<Kind>;
+    }
+    return new _Amount(this.amount.div(other), this.kind) as Amount<Kind>;
+  }
+
+  mod(other: _Amount<K>): _Amount<K> {
+    this.checkKind(other);
+    return new _Amount(this.amount.mod(other.amount), this.kind);
   }
 
   per<DK extends Kind>(
