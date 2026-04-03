@@ -31,7 +31,7 @@
   "scripts": {
     "prepublishOnly": "pnpm test && pnpm build",
     "build": "tsc",
-    "test": "tsx --test tests/**/*.test.ts",
+    "test": "tsx --test --test-force-exit tests/**/*.test.ts",
     "clean": "rm -rf ./dist"
   },
   "peerDependencies": {
