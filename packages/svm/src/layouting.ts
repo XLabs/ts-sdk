@@ -147,7 +147,7 @@ export const cOptionItem = <const L extends Layout>(
 export const cOptionAddressItem = (size: NumberSize = 4) =>
   cOptionItem(svmAddressItem, zeroAddress, size);
 
-export const cOoptionLamportsItem =
+export const cOptionLamportsItem =
   <const K extends KindWithAtomic | undefined = undefined>(kind?: K, size: NumberSize = 4) =>
     cOptionItem(
       lamportsItem(kind),
@@ -183,14 +183,14 @@ const _tokenAccountLayout = <
   const KT extends KindWithAtomic | undefined = undefined,
   const KS extends KindWithAtomic | undefined = undefined,
 >(tokenKind?: KT, solKind?: KS) => [
-  { name: "mint",            ...svmAddressItem                },
-  { name: "owner",           ...svmAddressItem                },
-  { name: "amount",          ...svmAmountItem(tokenKind)      },
-  { name: "delegate",        ...cOptionAddressItem()          },
-  { name: "state",           ...cEnumItem(tokenStates)        },
-  { name: "isNative",        ...cOoptionLamportsItem(solKind) },
-  { name: "delegatedAmount", ...svmAmountItem(tokenKind)      },
-  { name: "closeAuthority",  ...cOptionAddressItem()          },
+  { name: "mint",            ...svmAddressItem               },
+  { name: "owner",           ...svmAddressItem               },
+  { name: "amount",          ...svmAmountItem(tokenKind)     },
+  { name: "delegate",        ...cOptionAddressItem()         },
+  { name: "state",           ...cEnumItem(tokenStates)       },
+  { name: "isNative",        ...cOptionLamportsItem(solKind) },
+  { name: "delegatedAmount", ...svmAmountItem(tokenKind)     },
+  { name: "closeAuthority",  ...cOptionAddressItem()         },
 ] as const;
 
 export const tokenAccountLayout = <
