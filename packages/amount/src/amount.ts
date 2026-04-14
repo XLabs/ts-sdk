@@ -3,7 +3,7 @@ import { brand } from "@xlabs-xyz/const-utils";
 import type { Rationalish, ToFixedOptions } from "./rational.js";
 import { Rational } from "./rational.js";
 import type { Kind, KindWithHuman, SymbolsOf, DecimalSymbolsOf } from "./kind.js";
-import { getUnit, identifyKind } from "./kind.js";
+import { getUnit, identifyKind, sameKind } from "./kind.js";
 import { type Conversion, _Conversion } from "./conversion.js";
 import { approximate, precise, inUnit, parse as parseFormat } from "./format.js";
 
@@ -196,7 +196,7 @@ export class _Amount<K extends Kind> {
       return new _Amount(this.amount.div(other.ratio), other.den) as Amount<Kind>;
     }
     if (other instanceof _Amount) {
-      if (other.kind === this.kind)
+      if (sameKind(other.kind, this.kind))
         return this.amount.div(other.amount);
       return new _Amount(this.amount.div(other.amount), this.kind) as Amount<Kind>;
     }
@@ -232,7 +232,7 @@ export class _Amount<K extends Kind> {
 
   private checkKind(other: Kind | _Amount<any>): void {
     const otherKind = "kind" in other ? other.kind : other;
-    if (this.kind !== otherKind)
+    if (!sameKind(this.kind, otherKind))
       throw new Error(`Kind mismatch: ${this.kind.name} vs ${otherKind.name}`);
   }
 

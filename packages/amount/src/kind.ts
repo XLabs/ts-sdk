@@ -102,6 +102,10 @@ export type GetUnitSymbol<K extends Kind, M extends SymbolsOf<K>> =
   M extends "atomic"   ? K["atomic"] :
   M;
 
+export function sameKind(a: Kind, b: Kind): boolean {
+  return a === b || a.name === b.name;
+}
+
 export function getUnit<
   const K extends Kind,
   S extends SymbolsOf<K>,

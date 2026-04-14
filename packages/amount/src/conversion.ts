@@ -3,7 +3,7 @@ import { isArray } from "@xlabs-xyz/const-utils";
 import type { Rationalish, ToFixedOptions } from "./rational.js";
 import { Rational } from "./rational.js";
 import type { Kind, KindWithHuman, SymbolsOf, DecimalSymbolsOf } from "./kind.js";
-import { getUnit } from "./kind.js";
+import { getUnit, sameKind } from "./kind.js";
 import { type RejectScalar, Amount } from "./amount.js";
 import { inUnit } from "./format.js";
 
@@ -125,7 +125,7 @@ export class _Conversion<NK extends Kind, DK extends Kind> {
   }
 
   combine<NKO extends DK, DKO extends Kind>(other: Conversion<NKO, DKO>): Conversion<NK, DKO> {
-    if (this.den.name !== other.num.name)
+    if (!sameKind(this.den, other.num))
       throw new Error(`Kind mismatch: ${this.den.name} vs ${other.num.name}`);
 
     return _Conversion.checkedNew(
@@ -163,7 +163,7 @@ export class _Conversion<NK extends Kind, DK extends Kind> {
   }
 
   private checkKinds(other: Conversion<NK, DK>): void {
-    if (this.num.name !== other.num.name || this.den.name !== other.den.name)
+    if (!sameKind(this.num, other.num) || !sameKind(this.den, other.den))
       throw new Error(
         `Kind mismatch: ${this.num.name}/${this.den.name} vs ${other.num.name}/${other.den.name}`
       );
@@ -173,7 +173,7 @@ export class _Conversion<NK extends Kind, DK extends Kind> {
     NK extends Kind,
     DK extends Kind,
   >(ratio: Rational, num: NK, den: DK): Conversion<NK, DK> {
-    if (num.name === den.name)
+    if (sameKind(num, den))
       throw new Error(`Must be distinct kinds: ${num.name} vs ${den.name}`);
 
     return new _Conversion(ratio, num, den) as Conversion<NK, DK>;
