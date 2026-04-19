@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@xlabs-xyz/evm",
-  "version": "8.1.1",
+  "version": "8.1.2",
   "author": "xLabs",
   "license": "Apache-2.0",
   "description": "evm utils",
@@ -35,11 +35,11 @@
     "clean": "rm -rf ./dist"
   },
   "peerDependencies": {
-    "@xlabs-xyz/const-utils": "^8.1.1",
-    "@xlabs-xyz/binary-layout": "^8.1.1",
-    "@xlabs-xyz/common": "^8.1.1",
-    "@xlabs-xyz/amount": "^8.1.1",
-    "@xlabs-xyz/utils": "^8.1.1",
+    "@xlabs-xyz/const-utils": "^8.1.2",
+    "@xlabs-xyz/binary-layout": "^8.1.2",
+    "@xlabs-xyz/common": "^8.1.2",
+    "@xlabs-xyz/amount": "^8.1.2",
+    "@xlabs-xyz/utils": "^8.1.2",
     "viem": "*"
   },
   "devDependencies": {
