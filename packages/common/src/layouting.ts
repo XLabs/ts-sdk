@@ -1,6 +1,6 @@
 import type {
   RoPair,
-  RoTuple,
+  RoNeTuple,
   Column,
   Entries,
   TupleZip,
@@ -11,6 +11,8 @@ import type {
 import { column, entries, zip } from "@xlabs-xyz/const-utils";
 import type {
   Item,
+  SwitchItem,
+  ProperLayout,
   CustomConversion,
   NumberSize,
   Endianness,
@@ -43,11 +45,11 @@ export const paddingItem = (size: number) => ({
   binary: "bytes", custom: new Uint8Array(size), omit: true,
 } as const satisfies Item);
 
-type EnumVariants = RoTuple<RoPair<string, RoTuple>>;
+type EnumVariants = RoNeTuple<RoPair<string, ProperLayout>>;
 
 type EnumSwitchVariants<V extends EnumVariants> =
-  Entries<Column<V, 0>> extends infer VE extends RoTuple
-  ? Column<V, 1> extends infer VC extends RoTuple
+  Entries<Column<V, 0>> extends infer VE extends RoNeTuple
+  ? Column<V, 1> extends infer VC extends RoNeTuple
     ? TupleZip<[VE, VC]>
     : never
   : never;
@@ -58,7 +60,7 @@ export const enumSwitchVariants =
 
 export const byteSwitchItem = <
   const I extends string,
-  const L extends RoTuple,
+  const L extends SwitchItem["layouts"],
 >(idTag: I, layouts: L) =>
   ({ binary: "switch", idSize: 1, idTag, layouts } as const);
 
