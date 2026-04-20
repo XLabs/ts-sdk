@@ -224,19 +224,16 @@ type ArrayItemToType<I extends ArrayItem> =
 type MaybeConvert<Id extends PlainId | ConversionId> =
   Id extends RoPair<number, infer Converted> ? Converted : Id;
 
-type IdLayoutPairsToTypeUnion<A extends IdProperLayoutPairs, IdTag extends string> =
-  A extends infer V extends IdProperLayoutPairs
-  ? V extends readonly [infer Head,...infer Tail extends IdProperLayoutPairs]
-    ? Head extends IdProperLayoutPair<infer MaybeConversionId, infer P extends ProperLayout>
-      ? MaybeConvert<MaybeConversionId> extends infer Id
-        ? DeriveType<P> extends infer DT extends LayoutObject
-          ? { readonly [K in IdTag | keyof DT]: K extends keyof DT ? DT[K] : Id }
-            | IdLayoutPairsToTypeUnion<Tail, IdTag>
-          : never
-        : never
-      : never
+type IdLayoutPairToVariant<Pair, IdTag extends string> =
+  Pair extends IdProperLayoutPair<infer MaybeConversionId, infer P extends ProperLayout>
+  ? DeriveType<P> extends infer DT extends LayoutObject
+    ? { readonly [K in IdTag | keyof DT]:
+          K extends keyof DT ? DT[K] : MaybeConvert<MaybeConversionId> }
     : never
   : never;
+
+type IdLayoutPairsToTypeUnion<A extends IdProperLayoutPairs, IdTag extends string> =
+  A extends RoArray<infer Pair> ? IdLayoutPairToVariant<Pair, IdTag> : never;
 
 type SwitchItemToType<I extends SwitchItem> =
   IdLayoutPairsToTypeUnion<
